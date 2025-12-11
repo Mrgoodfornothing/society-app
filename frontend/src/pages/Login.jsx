@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { motion } from 'framer-motion'; 
 import { Sun, Moon, Monitor, LayoutDashboard, Lock, Mail } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // <--- Fixed Import
 
 const Login = () => {
   const navigate = useNavigate();
@@ -17,9 +17,9 @@ const Login = () => {
     e.preventDefault();
     try {
       const { data } = await axios.post('/api/users/login', { email, password });
+      
       localStorage.setItem('userInfo', JSON.stringify(data));
       toast.success(`Welcome back, ${data.name}!`);
-     // ... previous code (localStorage, toast) ...
       
       // Smart Redirect based on Role
       if (data.role === 'admin') {
@@ -76,7 +76,7 @@ const Login = () => {
             <input
               type="email"
               placeholder="Email Address"
-              className="input-field !pl-12" // <--- CHANGED THIS
+              className="input-field !pl-12"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -87,7 +87,7 @@ const Login = () => {
             <input
               type="password"
               placeholder="Password"
-              className="input-field !pl-12" // <--- CHANGED THIS
+              className="input-field !pl-12"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -102,6 +102,12 @@ const Login = () => {
             Sign In
           </motion.button>
         </form>
+
+        {/* --- ADDED THIS REGISTRATION LINK --- */}
+        <p className="mt-6 text-center text-sm text-slate-500">
+          Don't have an account? <Link to="/register" className="text-indigo-600 font-bold hover:underline">Register here</Link>
+        </p>
+
       </motion.div>
     </div>
   );
