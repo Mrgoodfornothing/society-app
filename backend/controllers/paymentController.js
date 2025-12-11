@@ -1,8 +1,8 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Bill = require('../models/Bill');
-const User = require('../models/User'); // <--- CRITICAL IMPORT
-const sendEmail = require('../utils/sendEmail'); // <--- CRITICAL IMPORT
+const User = require('../models/User'); 
+const sendEmail = require('../utils/sendEmail'); 
 
 // 1. Initialize Razorpay
 const razorpay = new Razorpay({
@@ -10,18 +10,15 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// @desc    Create a Razorpay Order
-// @route   POST /api/payment/order
+// @desc    Create Order
 const createOrder = async (req, res) => {
   const { amount } = req.body;
-
-  const options = {
-    amount: amount * 100, // Razorpay takes amount in paisa
-    currency: "INR",
-    receipt: "receipt_" + Math.random().toString(36).substring(7),
-  };
-
   try {
+    const options = {
+      amount: amount * 100, 
+      currency: "INR",
+      receipt: "receipt_" + Math.random().toString(36).substring(7),
+    };
     const order = await razorpay.orders.create(options);
     res.json(order);
   } catch (error) {
@@ -29,67 +26,56 @@ const createOrder = async (req, res) => {
   }
 };
 
-// @desc    Verify Payment and Update Bill
-// @route   POST /api/payment/verify
+// @desc    Verify Payment & Send Email
 const verifyPayment = async (req, res) => {
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature, billId } = req.body;
 
-  // 1. Create the expected signature
-  const body = razorpay_order_id + "|" + razorpay_payment_id;
-  const expectedSignature = crypto
-    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-    .update(body.toString())
-    .digest("hex");
+  try {
+    // 1. Validate Signature
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest("hex");
 
-  // 2. Compare signatures
-  if (expectedSignature === razorpay_signature) {
-    // Payment is Legit! Update the database.
-    try {
+    if (expectedSignature === razorpay_signature) {
+      // 2. Update Database
       const bill = await Bill.findById(billId);
-      
       if (bill) {
         bill.status = 'paid';
         bill.paymentId = razorpay_payment_id;
         await bill.save();
 
-        // 3. SEND EMAIL RECEIPT
-        // We wrap this in its own try-catch so email failure doesn't stop the payment success
+        // 3. Send Email (Wrapped in try-catch so it doesn't crash payment)
         try {
           const user = await User.findById(bill.resident);
           if (user) {
             const message = `
-              <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-                <h2 style="color: #4F46E5;">Payment Successful!</h2>
-                <p>Hi ${user.name},</p>
-                <p>We received your payment of <strong>₹${bill.amount}</strong> for <strong>${bill.title}</strong>.</p>
-                <p>Transaction ID: ${razorpay_payment_id}</p>
-                <br>
-                <p>Society Connect Team</p>
-              </div>
+              <h2>Payment Successful</h2>
+              <p>Hi ${user.name}, we received your payment of ₹${bill.amount}.</p>
+              <p>Transaction ID: ${razorpay_payment_id}</p>
             `;
-
             await sendEmail({
               email: user.email,
-              subject: 'Payment Receipt - Society Connect',
+              subject: 'Payment Receipt',
               message,
             });
-            console.log("Email sent successfully to:", user.email);
+            console.log("Email sent to:", user.email);
           }
         } catch (emailError) {
-          console.error("Email failed to send, but payment is recorded:", emailError.message);
+          console.error("Email failed:", emailError.message);
         }
 
-        res.json({ message: "Payment Successful", success: true });
-      } else {
-        res.status(404).json({ message: "Bill not found" });
+        return res.json({ message: "Payment Successful", success: true });
       }
-    } catch (dbError) {
-      console.error("Database Error:", dbError);
-      res.status(500).json({ message: "Server Error" });
+    } else {
+      return res.status(400).json({ message: "Invalid Signature", success: false });
     }
-  } else {
-    res.status(400).json({ message: "Invalid Signature", success: false });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
+// CRITICAL EXPORT LINE - Do not delete!
 module.exports = { createOrder, verifyPayment };
