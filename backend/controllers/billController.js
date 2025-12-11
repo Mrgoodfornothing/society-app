@@ -10,18 +10,18 @@ const getMyBills = async (req, res) => {
   res.json(bills);
 };
 
-// @desc    Create a new bill (For Admin/Testing)
-// @route   POST /api/bills
-// @access  Private
 const createBill = async (req, res) => {
-  const { title, amount, dueDate } = req.body;
+  const { residentId, title, amount, dueDate } = req.body;
 
   if (!title || !amount || !dueDate) {
     return res.status(400).json({ message: 'Please add all fields' });
   }
 
+  // Logic: If Admin provides a residentId, use it. Otherwise, fallback to self (for testing)
+  const targetResident = residentId ? residentId : req.user._id;
+
   const bill = await Bill.create({
-    resident: req.user._id, // Assigning bill to YOURSELF for testing
+    resident: targetResident, 
     title,
     amount,
     dueDate,

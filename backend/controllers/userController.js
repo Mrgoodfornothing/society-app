@@ -65,4 +65,12 @@ const authUser = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, authUser };
+// @desc    Get all residents (For Admin)
+// @route   GET /api/users
+// @access  Private/Admin
+const getResidents = async (req, res) => {
+  const users = await User.find({ role: 'resident' }).select('-password');
+  res.json(users);
+};
+
+module.exports = { registerUser, authUser, getResidents };
