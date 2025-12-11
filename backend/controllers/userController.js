@@ -1,57 +1,76 @@
-// controllers/userController.js
-const User = require('../models/User');
-const generateToken = require('../utils/generateToken');
+const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const asyncHandler = require('express-async-handler');
+const User = require('../models/User');
+const Bill = require('../models/Bill'); // Import Bill for welcome gift
 
-// @desc    Register a new user
+// Generate JWT Helper
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: '30d',
+  });
+};
+
+// @desc    Register new user
 // @route   POST /api/users
 // @access  Public
-const registerUser = async (req, res) => {
+const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password, flatNumber, phone } = req.body;
 
-  // 1. Check if user already exists
-  const userExists = await User.findOne({ email });
-  if (userExists) {
-    return res.status(400).json({ message: 'User already exists' });
+  if (!name || !email || !password || !flatNumber || !phone) {
+    res.status(400);
+    throw new Error('Please add all fields');
   }
 
-  // 2. Hash the password (Security step)
+  const userExists = await User.findOne({ email });
+
+  if (userExists) {
+    res.status(400);
+    throw new Error('User already exists');
+  }
+
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
-  // 3. Create the user in Database
   const user = await User.create({
     name,
     email,
     password: hashedPassword,
     flatNumber,
-    phone
+    phone,
+    role: 'resident' 
   });
 
-  // 4. Send back the user info + The Token
   if (user) {
+    // Auto-create Welcome Bill
+    await Bill.create({
+      resident: user._id,
+      title: 'Welcome Maintenance Bill (Demo)',
+      amount: 1500,
+      dueDate: new Date(new Date().setDate(new Date().getDate() + 7)),
+      status: 'pending'
+    });
+
     res.status(201).json({
       _id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
-      token: generateToken(user._id), // <--- The VIP Pass
+      token: generateToken(user._id),
     });
   } else {
-    res.status(400).json({ message: 'Invalid user data' });
+    res.status(400);
+    throw new Error('Invalid user data');
   }
-};
+});
 
-// @desc    Auth user & get token (Login)
+// @desc    Authenticate a user
 // @route   POST /api/users/login
 // @access  Public
-const authUser = async (req, res) => {
+const authUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-
-  // 1. Find user by email
   const user = await User.findOne({ email });
 
-  // 2. Check if user exists AND if password matches the Hash
   if (user && (await bcrypt.compare(password, user.password))) {
     res.json({
       _id: user._id,
@@ -61,17 +80,18 @@ const authUser = async (req, res) => {
       token: generateToken(user._id),
     });
   } else {
-    res.status(401).json({ message: 'Invalid email or password' });
+    res.status(400);
+    throw new Error('Invalid credentials');
   }
-};
+});
 
-// @desc    Get all residents (For Admin)
+// @desc    Get all residents
 // @route   GET /api/users
 // @access  Private/Admin
-const getResidents = async (req, res) => {
+const getResidents = asyncHandler(async (req, res) => {
   const users = await User.find({ role: 'resident' }).select('-password');
   res.json(users);
-};
+});
 
 // @desc    Auth with Google
 // @route   POST /api/users/google-login
@@ -80,11 +100,10 @@ const googleLogin = async (req, res) => {
   const { email, name, googlePhoto } = req.body;
 
   try {
-    // 1. Check if user already exists
     const user = await User.findOne({ email });
 
     if (user) {
-      // User exists -> Log them in
+      // User exists -> Log in
       res.json({
         _id: user._id,
         name: user.name,
@@ -94,21 +113,20 @@ const googleLogin = async (req, res) => {
         token: generateToken(user._id),
       });
     } else {
-      // 2. User doesn't exist -> Register them instantly
-      // We generate a random password because they will use Google to login
+      // User doesn't exist -> Register
       const randomPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
       
       const newUser = await User.create({
         name,
         email,
         password: randomPassword, 
-        flatNumber: 'Not Assigned', // Admin can update this later
+        flatNumber: 'Not Assigned',
+        phone: '0000000000', // Default phone for Google users
         role: 'resident'
       });
 
       if (newUser) {
-        // --- Auto-create Welcome Bill (Optional) ---
-        const Bill = require('../models/Bill');
+        // Welcome Bill
         await Bill.create({
           resident: newUser._id,
           title: 'Welcome Maintenance Bill',
@@ -116,7 +134,6 @@ const googleLogin = async (req, res) => {
           dueDate: new Date(new Date().setDate(new Date().getDate() + 7)),
           status: 'pending'
         });
-        // -------------------------------------------
 
         res.status(201).json({
           _id: newUser._id,
@@ -129,6 +146,7 @@ const googleLogin = async (req, res) => {
       }
     }
   } catch (error) {
+    console.error("Google Login Error:", error);
     res.status(400).json({ message: 'Google Login Failed' });
   }
 };
