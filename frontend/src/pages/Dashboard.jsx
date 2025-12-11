@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LogOut, Home, CreditCard, Menu, X, Bell, Wrench, CheckCircle, Phone, Shield, Zap, Droplet, Flame 
 } from 'lucide-react';
@@ -15,10 +15,14 @@ const Dashboard = () => {
   const [bills, setBills] = useState([]);
   const [notices, setNotices] = useState([]);
   const [complaints, setComplaints] = useState([]);
+  
+  // Desktop Sidebar State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Mobile Sidebar State (NEW)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Complaint Form State
   const [complaintForm, setComplaintForm] = useState({ title: '', description: '', category: 'Plumbing' });
 
   useEffect(() => {
@@ -58,23 +62,19 @@ const Dashboard = () => {
     } catch (error) { console.error(error); }
   };
 
-  // --- RESTORED PAYMENT LOGIC ---
   const handlePayment = async (billAmount, billId) => {
     try {
-      // 1. Create Order
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
       const { data: order } = await axios.post('/api/payment/order', { amount: billAmount }, config);
 
-      // 2. Configure Razorpay Options
       const options = {
-        key: "rzp_test_RqD258d3jIqnzq", // <--- PASTE YOUR KEY ID HERE! (starts with rzp_test_)
+        key: "YOUR_RAZORPAY_KEY_ID_HERE", // <--- PASTE YOUR KEY HERE
         amount: order.amount,
         currency: "INR",
         name: "Society Connect",
         description: "Maintenance Bill",
         order_id: order.id,
         handler: async function (response) {
-          // 3. Verify Payment on Backend
           try {
             const verifyData = {
               razorpay_order_id: response.razorpay_order_id,
@@ -83,25 +83,20 @@ const Dashboard = () => {
               billId: billId
             };
             await axios.post('/api/payment/verify', verifyData, config);
-            
             toast.success("Payment Successful!");
-            fetchBills(user.token); // Refresh the list to show "Paid"
+            fetchBills(user.token);
           } catch (error) {
             toast.error("Payment Verification Failed");
           }
         },
-        theme: {
-          color: "#4F46E5",
-        },
+        theme: { color: "#4F46E5" },
       };
 
-      // 4. Open the Popup
       const rzp1 = new window.Razorpay(options);
       rzp1.open();
-
     } catch (error) {
       console.error(error);
-      toast.error("Something went wrong with payment");
+      toast.error("Payment failed");
     }
   };
 
@@ -123,7 +118,6 @@ const Dashboard = () => {
     navigate('/');
   };
 
-  // Static Directory Data
   const emergencyContacts = [
     { name: "Main Gate Security", phone: "+91 98765 43210", icon: <Shield className="text-blue-500" />, desc: "24/7 Guard" },
     { name: "Society Secretary", phone: "+91 99887 76655", icon: <Phone className="text-green-500" />, desc: "Admin Office" },
@@ -133,10 +127,16 @@ const Dashboard = () => {
     { name: "Fire Brigade", phone: "101", icon: <Flame className="text-red-500" />, desc: "Emergency" },
   ];
 
+  // Helper to handle navigation click on mobile (close menu after click)
+  const handleNavClick = (tabName) => {
+    setActiveTab(tabName);
+    setIsMobileMenuOpen(false); // Close mobile menu when item is clicked
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex transition-colors duration-300">
       
-      {/* SIDEBAR */}
+      {/* 1. DESKTOP SIDEBAR (Hidden on Mobile) */}
       <motion.div animate={{ width: isSidebarOpen ? '250px' : '80px' }} className="h-screen bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden md:flex flex-col shadow-xl z-20">
         <div className="p-6 flex items-center justify-between">
           {isSidebarOpen && <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">Society App</h1>}
@@ -159,18 +159,73 @@ const Dashboard = () => {
         </div>
       </motion.div>
 
+      {/* 2. MOBILE MENU OVERLAY (Visible only when isMobileMenuOpen is true) */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 flex md:hidden">
+            {/* Backdrop (Darkens background) */}
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            ></motion.div>
+            
+            {/* Slide-in Drawer */}
+            <motion.div 
+              initial={{ x: -300 }} animate={{ x: 0 }} exit={{ x: -300 }}
+              className="relative w-64 h-full bg-white dark:bg-slate-800 shadow-2xl flex flex-col"
+            >
+              <div className="p-6 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
+                <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">Society App</h1>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <nav className="flex-1 p-4 space-y-2">
+                <SidebarItem icon={<Home size={20} />} text="Overview" active={activeTab === 'overview'} isOpen={true} onClick={() => handleNavClick('overview')} />
+                <SidebarItem icon={<CreditCard size={20} />} text="My Bills" active={activeTab === 'bills'} isOpen={true} onClick={() => handleNavClick('bills')} />
+                <SidebarItem icon={<Bell size={20} />} text="Community" active={activeTab === 'community'} isOpen={true} onClick={() => handleNavClick('community')} />
+                <SidebarItem icon={<Wrench size={20} />} text="Helpdesk" active={activeTab === 'helpdesk'} isOpen={true} onClick={() => handleNavClick('helpdesk')} />
+                <SidebarItem icon={<Phone size={20} />} text="Directory" active={activeTab === 'directory'} isOpen={true} onClick={() => handleNavClick('directory')} />
+              </nav>
+
+              <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+                <button onClick={logoutHandler} className="flex items-center space-x-3 w-full p-3 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
+                  <LogOut size={20} />
+                  <span>Logout</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-16 glass flex items-center justify-between px-6 sticky top-0 z-10">
-          <h2 className="text-lg font-semibold text-slate-700 dark:text-slate-200">Welcome back, {user.name} 👋</h2>
+        {/* HEADER */}
+        <header className="h-16 glass flex items-center justify-between px-4 sm:px-6 sticky top-0 z-10">
+          <div className="flex items-center">
+            {/* MOBILE MENU BUTTON (Visible only on mobile) */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)} 
+              className="md:hidden p-2 mr-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200"
+            >
+              <Menu size={24} />
+            </button>
+            <h2 className="text-base sm:text-lg font-semibold text-slate-700 dark:text-slate-200">
+              Welcome, {user.name?.split(' ')[0]}
+            </h2>
+          </div>
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">{theme === 'dark' ? '🌙' : '☀️'}</button>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 relative">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 relative">
            
            {/* TAB 1 & 2: BILLS */}
            {(activeTab === 'overview' || activeTab === 'bills') && (
-             <div><h3 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">Your Bills</h3>
+             <div>
+                <h3 className="text-xl sm:text-2xl font-bold mb-6 text-slate-800 dark:text-white">Your Bills</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {bills.length > 0 ? bills.map((bill) => (
                   <div key={bill._id} className="glass p-6 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -187,7 +242,6 @@ const Dashboard = () => {
                      <div className="flex items-center justify-between mt-4">
                        <span className="text-2xl font-bold text-slate-900 dark:text-white">₹ {bill.amount}</span>
                        {bill.status === 'pending' ? (
-                         // --- FIXED BUTTON: Now calls handlePayment ---
                          <button 
                            onClick={() => handlePayment(bill.amount, bill._id)}
                            className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-80 transition"
@@ -205,7 +259,7 @@ const Dashboard = () => {
            )}
 
            {/* TAB 3: NOTICES */}
-           {activeTab === 'community' && <div><h3 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">Community Notices</h3>
+           {activeTab === 'community' && <div><h3 className="text-xl sm:text-2xl font-bold mb-6 text-slate-800 dark:text-white">Community Notices</h3>
               <div className="max-w-3xl mx-auto space-y-6">
                {notices.map((notice) => (
                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={notice._id} className="glass p-6 rounded-xl border-l-4 border-l-indigo-500">
@@ -258,7 +312,7 @@ const Dashboard = () => {
            {/* TAB 5: DIRECTORY */}
            {activeTab === 'directory' && (
              <div>
-               <h3 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">Emergency Directory</h3>
+               <h3 className="text-xl sm:text-2xl font-bold mb-6 text-slate-800 dark:text-white">Emergency Directory</h3>
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                  {emergencyContacts.map((contact, index) => (
                    <motion.div 
