@@ -73,4 +73,64 @@ const getResidents = async (req, res) => {
   res.json(users);
 };
 
-module.exports = { registerUser, authUser, getResidents };
+// @desc    Auth with Google
+// @route   POST /api/users/google-login
+// @access  Public
+const googleLogin = async (req, res) => {
+  const { email, name, googlePhoto } = req.body;
+
+  try {
+    // 1. Check if user already exists
+    const user = await User.findOne({ email });
+
+    if (user) {
+      // User exists -> Log them in
+      res.json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        flatNumber: user.flatNumber,
+        token: generateToken(user._id),
+      });
+    } else {
+      // 2. User doesn't exist -> Register them instantly
+      // We generate a random password because they will use Google to login
+      const randomPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+      
+      const newUser = await User.create({
+        name,
+        email,
+        password: randomPassword, 
+        flatNumber: 'Not Assigned', // Admin can update this later
+        role: 'resident'
+      });
+
+      if (newUser) {
+        // --- Auto-create Welcome Bill (Optional) ---
+        const Bill = require('../models/Bill');
+        await Bill.create({
+          resident: newUser._id,
+          title: 'Welcome Maintenance Bill',
+          amount: 1000,
+          dueDate: new Date(new Date().setDate(new Date().getDate() + 7)),
+          status: 'pending'
+        });
+        // -------------------------------------------
+
+        res.status(201).json({
+          _id: newUser._id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+          flatNumber: newUser.flatNumber,
+          token: generateToken(newUser._id),
+        });
+      }
+    }
+  } catch (error) {
+    res.status(400).json({ message: 'Google Login Failed' });
+  }
+};
+
+module.exports = { registerUser, authUser, getResidents, googleLogin };

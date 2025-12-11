@@ -6,6 +6,8 @@ import { motion } from 'framer-motion';
 import { Sun, Moon, Monitor, LayoutDashboard, Lock, Mail } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useNavigate, Link } from 'react-router-dom'; // <--- Fixed Import
+import { auth, provider } from '../firebase';
+import { signInWithPopup } from 'firebase/auth';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -31,6 +33,30 @@ const Login = () => {
       toast.error(error.response?.data?.message || 'Login Failed');
     }
   };
+
+  const googleLoginHandler = async () => {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+
+    // Send this Google User to OUR Backend
+    const { data } = await axios.post('/api/users/google-login', {
+      name: user.displayName,
+      email: user.email,
+      googlePhoto: user.photoURL
+    });
+
+    localStorage.setItem('userInfo', JSON.stringify(data));
+    toast.success(`Welcome, ${data.name}!`);
+
+    if (data.role === 'admin') navigate('/admin');
+    else navigate('/dashboard');
+
+  } catch (error) {
+    console.error(error);
+    toast.error('Google Sign-In Failed');
+  }
+};
 
   return (
     <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
@@ -101,6 +127,20 @@ const Login = () => {
           >
             Sign In
           </motion.button>
+
+          <div className="relative my-4">
+  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300 dark:border-slate-600"></div></div>
+  <div className="relative flex justify-center text-sm"><span className="px-2 bg-white dark:bg-slate-800 text-gray-500">Or continue with</span></div>
+</div>
+
+<button 
+  type="button"
+  onClick={googleLoginHandler}
+  className="w-full bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-slate-700 dark:text-white font-semibold py-3 px-6 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-600 transition flex items-center justify-center gap-2"
+>
+  <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
+  Sign in with Google
+</button>
         </form>
 
         {/* --- ADDED THIS REGISTRATION LINK --- */}
