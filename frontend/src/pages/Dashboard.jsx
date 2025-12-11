@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { LogOut, Home, CreditCard, Menu, X, Bell, Wrench, CheckCircle } from 'lucide-react';
+import { 
+  LogOut, Home, CreditCard, Menu, X, Bell, Wrench, CheckCircle, Phone, Shield, Zap, Droplet, Flame 
+} from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { toast } from 'react-toastify';
 
@@ -12,7 +14,7 @@ const Dashboard = () => {
   const [user, setUser] = useState({});
   const [bills, setBills] = useState([]);
   const [notices, setNotices] = useState([]);
-  const [complaints, setComplaints] = useState([]); // <--- NEW STATE
+  const [complaints, setComplaints] = useState([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -28,7 +30,7 @@ const Dashboard = () => {
       setUser(parsedUser);
       fetchBills(parsedUser.token);
       fetchNotices(parsedUser.token);
-      fetchComplaints(parsedUser.token); // <--- FETCH ON LOAD
+      fetchComplaints(parsedUser.token);
     }
   }, [navigate]);
 
@@ -63,7 +65,7 @@ const Dashboard = () => {
       await axios.post('/api/complaints', complaintForm, config);
       toast.success('Ticket Raised Successfully!');
       setComplaintForm({ title: '', description: '', category: 'Plumbing' });
-      fetchComplaints(user.token); // Refresh list
+      fetchComplaints(user.token);
     } catch (error) {
       toast.error('Failed to raise ticket');
     }
@@ -74,8 +76,15 @@ const Dashboard = () => {
     navigate('/');
   };
 
-  // Payment Logic Placeholder (Keep your existing Razorpay logic here)
-  const handlePayment = (amount, id) => { /* ... */ };
+  // Static Directory Data
+  const emergencyContacts = [
+    { name: "Main Gate Security", phone: "+91 98765 43210", icon: <Shield className="text-blue-500" />, desc: "24/7 Guard" },
+    { name: "Society Secretary", phone: "+91 99887 76655", icon: <Phone className="text-green-500" />, desc: "Admin Office" },
+    { name: "Lift Technician", phone: "+91 12345 67890", icon: <Wrench className="text-orange-500" />, desc: "Otis Support" },
+    { name: "Plumber", phone: "+91 11223 34455", icon: <Droplet className="text-cyan-500" />, desc: "On-Call" },
+    { name: "Electrician", phone: "+91 55667 78899", icon: <Zap className="text-yellow-500" />, desc: "On-Call" },
+    { name: "Fire Brigade", phone: "101", icon: <Flame className="text-red-500" />, desc: "Emergency" },
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex transition-colors duration-300">
@@ -93,6 +102,7 @@ const Dashboard = () => {
           <SidebarItem icon={<CreditCard size={20} />} text="My Bills" active={activeTab === 'bills'} isOpen={isSidebarOpen} onClick={() => setActiveTab('bills')} />
           <SidebarItem icon={<Bell size={20} />} text="Community" active={activeTab === 'community'} isOpen={isSidebarOpen} onClick={() => setActiveTab('community')} />
           <SidebarItem icon={<Wrench size={20} />} text="Helpdesk" active={activeTab === 'helpdesk'} isOpen={isSidebarOpen} onClick={() => setActiveTab('helpdesk')} />
+          <SidebarItem icon={<Phone size={20} />} text="Directory" active={activeTab === 'directory'} isOpen={isSidebarOpen} onClick={() => setActiveTab('directory')} />
         </nav>
         <div className="p-4 border-t border-slate-200 dark:border-slate-700">
           <button onClick={logoutHandler} className="flex items-center space-x-3 w-full p-3 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
@@ -111,23 +121,54 @@ const Dashboard = () => {
 
         <main className="flex-1 overflow-y-auto p-6 relative">
            
-           {/* TAB 1 & 2: BILLS (Simplified for brevity, keep your code) */}
+           {/* TAB 1 & 2: BILLS */}
            {(activeTab === 'overview' || activeTab === 'bills') && (
              <div><h3 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">Your Bills</h3>
-             {/* ... Your Bill Grid Here ... */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {bills.length > 0 ? bills.map((bill) => (
+                  <div key={bill._id} className="glass p-6 rounded-xl border border-slate-200 dark:border-slate-700">
+                     <div className="flex justify-between items-start mb-4">
+                       <div className="p-3 bg-indigo-50 dark:bg-slate-700 rounded-lg">
+                         <CreditCard className="text-indigo-600 dark:text-indigo-400" size={24} />
+                       </div>
+                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${bill.status === 'paid' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
+                         {bill.status.toUpperCase()}
+                       </span>
+                     </div>
+                     <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-1">{bill.title}</h4>
+                     <p className="text-slate-500 text-sm mb-4">Due: {new Date(bill.dueDate).toLocaleDateString()}</p>
+                     <div className="flex items-center justify-between mt-4">
+                       <span className="text-2xl font-bold text-slate-900 dark:text-white">₹ {bill.amount}</span>
+                       {bill.status === 'pending' ? (
+                         <button className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-80 transition">Pay Now</button>
+                       ) : (
+                         <div className="flex items-center text-green-500"><CheckCircle size={18} className="mr-1"/> Paid</div>
+                       )}
+                     </div>
+                  </div>
+                )) : <div className="glass p-12 text-center text-slate-500">No pending bills.</div>}
+                </div>
              </div>
            )}
 
-           {/* TAB 3: NOTICES (Keep your code) */}
+           {/* TAB 3: NOTICES */}
            {activeTab === 'community' && <div><h3 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">Community Notices</h3>
-             {/* ... Your Notice List Here ... */}
+              <div className="max-w-3xl mx-auto space-y-6">
+               {notices.map((notice) => (
+                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={notice._id} className="glass p-6 rounded-xl border-l-4 border-l-indigo-500">
+                    <span className="text-xs font-bold uppercase bg-indigo-100 text-indigo-600 px-2 py-1 rounded">{notice.type}</span>
+                    <h4 className="text-xl font-bold mt-2 text-slate-800 dark:text-white">{notice.title}</h4>
+                    <p className="text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">{notice.description}</p>
+                    <p className="text-xs text-slate-400 mt-4">Posted on {new Date(notice.createdAt).toLocaleDateString()}</p>
+                 </motion.div>
+               ))}
+               {notices.length === 0 && <p className="text-center text-slate-500">No notices yet.</p>}
+              </div>
            </div>}
 
-           {/* TAB 4: HELPDESK (NEW) */}
+           {/* TAB 4: HELPDESK */}
            {activeTab === 'helpdesk' && (
              <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-               
-               {/* FORM */}
                <div className="glass p-6 rounded-xl h-fit">
                  <h3 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">Raise a Ticket</h3>
                  <form onSubmit={handleComplaintSubmit} className="space-y-4">
@@ -142,8 +183,6 @@ const Dashboard = () => {
                    <button className="bg-indigo-600 text-white w-full py-3 rounded-lg font-bold hover:bg-indigo-700 transition">Submit Ticket</button>
                  </form>
                </div>
-
-               {/* LIST */}
                <div>
                  <h3 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">Your Tickets</h3>
                  <div className="space-y-4">
@@ -151,10 +190,7 @@ const Dashboard = () => {
                      <div key={ticket._id} className="glass p-4 rounded-xl border-l-4 border-l-orange-500">
                        <div className="flex justify-between items-start">
                          <span className="text-xs font-bold uppercase bg-orange-100 text-orange-600 px-2 py-1 rounded">{ticket.category}</span>
-                         {ticket.status === 'resolved' ? 
-                           <span className="flex items-center text-green-600 text-sm font-bold"><CheckCircle size={16} className="mr-1"/> Resolved</span> : 
-                           <span className="text-sm text-slate-400">Open</span>
-                         }
+                         {ticket.status === 'resolved' ? <span className="flex items-center text-green-600 text-sm font-bold"><CheckCircle size={16} className="mr-1"/> Resolved</span> : <span className="text-sm text-slate-400">Open</span>}
                        </div>
                        <h4 className="font-bold mt-2 dark:text-white">{ticket.title}</h4>
                        <p className="text-sm text-slate-500 mt-1">{ticket.description}</p>
@@ -166,13 +202,44 @@ const Dashboard = () => {
              </div>
            )}
 
+           {/* TAB 5: DIRECTORY (NEW) */}
+           {activeTab === 'directory' && (
+             <div>
+               <h3 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">Emergency Directory</h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {emergencyContacts.map((contact, index) => (
+                   <motion.div 
+                      key={index} 
+                      whileHover={{ scale: 1.02 }}
+                      className="glass p-6 rounded-xl flex items-center justify-between"
+                   >
+                      <div className="flex items-center space-x-4">
+                        <div className="p-3 bg-slate-100 dark:bg-slate-700 rounded-full text-2xl">
+                          {contact.icon}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-800 dark:text-white">{contact.name}</h4>
+                          <p className="text-sm text-slate-500">{contact.desc}</p>
+                        </div>
+                      </div>
+                      <a 
+                        href={`tel:${contact.phone}`} 
+                        className="p-3 bg-green-500 text-white rounded-full hover:bg-green-600 shadow-lg transition"
+                      >
+                        <Phone size={20} />
+                      </a>
+                   </motion.div>
+                 ))}
+               </div>
+             </div>
+           )}
+
         </main>
       </div>
     </div>
   );
 };
 
-// Helper
 const SidebarItem = ({ icon, text, active, isOpen, onClick }) => (
   <div onClick={onClick} className={`flex items-center p-3 rounded-lg cursor-pointer transition-all ${active ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
     {icon} {isOpen && <span className="ml-3 font-medium">{text}</span>}
