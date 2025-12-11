@@ -58,6 +58,53 @@ const Dashboard = () => {
     } catch (error) { console.error(error); }
   };
 
+  // --- RESTORED PAYMENT LOGIC ---
+  const handlePayment = async (billAmount, billId) => {
+    try {
+      // 1. Create Order
+      const config = { headers: { Authorization: `Bearer ${user.token}` } };
+      const { data: order } = await axios.post('/api/payment/order', { amount: billAmount }, config);
+
+      // 2. Configure Razorpay Options
+      const options = {
+        key: "rzp_test_RqD258d3jIqnzq", // <--- PASTE YOUR KEY ID HERE! (starts with rzp_test_)
+        amount: order.amount,
+        currency: "INR",
+        name: "Society Connect",
+        description: "Maintenance Bill",
+        order_id: order.id,
+        handler: async function (response) {
+          // 3. Verify Payment on Backend
+          try {
+            const verifyData = {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              billId: billId
+            };
+            await axios.post('/api/payment/verify', verifyData, config);
+            
+            toast.success("Payment Successful!");
+            fetchBills(user.token); // Refresh the list to show "Paid"
+          } catch (error) {
+            toast.error("Payment Verification Failed");
+          }
+        },
+        theme: {
+          color: "#4F46E5",
+        },
+      };
+
+      // 4. Open the Popup
+      const rzp1 = new window.Razorpay(options);
+      rzp1.open();
+
+    } catch (error) {
+      console.error(error);
+      toast.error("Something went wrong with payment");
+    }
+  };
+
   const handleComplaintSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -140,7 +187,13 @@ const Dashboard = () => {
                      <div className="flex items-center justify-between mt-4">
                        <span className="text-2xl font-bold text-slate-900 dark:text-white">₹ {bill.amount}</span>
                        {bill.status === 'pending' ? (
-                         <button className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-80 transition">Pay Now</button>
+                         // --- FIXED BUTTON: Now calls handlePayment ---
+                         <button 
+                           onClick={() => handlePayment(bill.amount, bill._id)}
+                           className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-80 transition"
+                         >
+                           Pay Now
+                         </button>
                        ) : (
                          <div className="flex items-center text-green-500"><CheckCircle size={18} className="mr-1"/> Paid</div>
                        )}
@@ -202,7 +255,7 @@ const Dashboard = () => {
              </div>
            )}
 
-           {/* TAB 5: DIRECTORY (NEW) */}
+           {/* TAB 5: DIRECTORY */}
            {activeTab === 'directory' && (
              <div>
                <h3 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">Emergency Directory</h3>
