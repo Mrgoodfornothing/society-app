@@ -68,7 +68,7 @@ const Dashboard = () => {
       const { data: order } = await axios.post('/api/payment/order', { amount: billAmount }, config);
 
       const options = {
-        key: "YOUR_RAZORPAY_KEY_ID_HERE", // <--- PASTE YOUR KEY HERE
+        key: "rzp_test_RqD258d3jIqnzq", // <--- PASTE YOUR KEY HERE
         amount: order.amount,
         currency: "INR",
         name: "Society Connect",

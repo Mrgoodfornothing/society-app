@@ -1,81 +1,68 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Bill = require('../models/Bill');
-const User = require('../models/User'); 
-const sendEmail = require('../utils/sendEmail'); 
+// const User = require('../models/User'); // Commented out to prevent crash
+// const sendEmail = require('../utils/sendEmail'); // Commented out to prevent crash
 
-// 1. Initialize Razorpay
+console.log("Payment Controller Loaded"); // <--- Debug Log 1
+
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// @desc    Create Order
 const createOrder = async (req, res) => {
-  const { amount } = req.body;
+  console.log("-> Create Order Request Received"); // <--- Debug Log
   try {
+    const { amount } = req.body;
     const options = {
-      amount: amount * 100, 
+      amount: amount * 100,
       currency: "INR",
       receipt: "receipt_" + Math.random().toString(36).substring(7),
     };
     const order = await razorpay.orders.create(options);
+    console.log("-> Razorpay Order ID generated:", order.id);
     res.json(order);
   } catch (error) {
+    console.error("-> Create Order Error:", error);
     res.status(500).send(error);
   }
 };
 
-// @desc    Verify Payment & Send Email
 const verifyPayment = async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, billId } = req.body;
-
+  console.log("-> Verify Payment Request Received"); // <--- Debug Log
   try {
-    // 1. Validate Signature
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, billId } = req.body;
+
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(body.toString())
       .digest("hex");
 
+    console.log(`-> Sig Match? Expected: ${expectedSignature.substring(0,5)}... Received: ${razorpay_signature.substring(0,5)}...`);
+
     if (expectedSignature === razorpay_signature) {
-      // 2. Update Database
       const bill = await Bill.findById(billId);
       if (bill) {
         bill.status = 'paid';
         bill.paymentId = razorpay_payment_id;
         await bill.save();
-
-        // 3. Send Email (Wrapped in try-catch so it doesn't crash payment)
-        try {
-          const user = await User.findById(bill.resident);
-          if (user) {
-            const message = `
-              <h2>Payment Successful</h2>
-              <p>Hi ${user.name}, we received your payment of ₹${bill.amount}.</p>
-              <p>Transaction ID: ${razorpay_payment_id}</p>
-            `;
-            await sendEmail({
-              email: user.email,
-              subject: 'Payment Receipt',
-              message,
-            });
-            console.log("Email sent to:", user.email);
-          }
-        } catch (emailError) {
-          console.error("Email failed:", emailError.message);
-        }
-
+        console.log("-> Bill Updated to PAID in DB");
         return res.json({ message: "Payment Successful", success: true });
+      } else {
+        console.error("-> Bill ID not found in DB");
+        return res.status(404).json({ message: "Bill not found" });
       }
     } else {
+      console.error("-> Signature Mismatch!");
       return res.status(400).json({ message: "Invalid Signature", success: false });
     }
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server Error" });
+    console.error("-> Verify Function CRASHED:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
-// CRITICAL EXPORT LINE - Do not delete!
+// CRITICAL: Ensure these names match EXACTLY what we import in routes
 module.exports = { createOrder, verifyPayment };
