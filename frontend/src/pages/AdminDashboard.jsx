@@ -4,7 +4,7 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { motion } from 'framer-motion';
 import { 
-  Users, FileText, Bell, LogOut, Plus, LayoutDashboard, X, Check, MessageCircle
+  Users, FileText, Bell, LogOut, Plus, LayoutDashboard, X, Check, MessageCircle, Wrench, CheckCircle
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -64,6 +64,7 @@ const AdminDashboard = () => {
           <SidebarItem icon={<Users size={20} />} label="Residents" active={activeTab === 'residents'} onClick={() => setActiveTab('residents')} />
           <SidebarItem icon={<FileText size={20} />} label="Manage Bills" active={activeTab === 'bills'} onClick={() => setActiveTab('bills')} />
           <SidebarItem icon={<Bell size={20} />} label="Notices" active={activeTab === 'notices'} onClick={() => setActiveTab('notices')} />
+          <SidebarItem icon={<Wrench size={20} />} label="Helpdesk" active={activeTab === 'helpdesk'} onClick={() => setActiveTab('helpdesk')} />
         </nav>
 
         <div className="p-4 border-t border-slate-200 dark:border-slate-700">
@@ -90,6 +91,7 @@ const AdminDashboard = () => {
            {activeTab === 'residents' && <ResidentsTab residents={residents} />}
            {activeTab === 'bills' && <BillsTab residents={residents} openModal={() => setShowBillModal(true)} />}
            {activeTab === 'notices' && <NoticesTab />}
+           {activeTab === 'helpdesk' && <HelpdeskTab />}
         </main>
       </div>
 
@@ -157,7 +159,6 @@ const NoticesTab = () => {
   const [formData, setFormData] = useState({ title: '', description: '', type: 'info' });
   const [loading, setLoading] = useState(false);
 
-  // Fetch notices on load
   useEffect(() => {
     fetchNotices();
   }, []);
@@ -182,14 +183,13 @@ const NoticesTab = () => {
       await axios.post('/api/notices', formData, config);
       toast.success('Notice Posted!');
       setFormData({ title: '', description: '', type: 'info' });
-      fetchNotices(); // Refresh list
+      fetchNotices();
     } catch (error) {
       toast.error('Failed to post notice');
     }
     setLoading(false);
   };
 
-  // WhatsApp Share Logic
   const shareToWhatsApp = (notice) => {
     const text = `📢 *Society Notice: ${notice.title}*\n\n${notice.description}\n\n- Secretary`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
@@ -259,6 +259,66 @@ const NoticesTab = () => {
           </div>
         ))}
       </div>
+    </div>
+  );
+};
+
+// --- HELPDESK TAB (NEW FEATURE) ---
+const HelpdeskTab = () => {
+  const [tickets, setTickets] = useState([]);
+
+  useEffect(() => {
+    fetchTickets();
+  }, []);
+
+  const fetchTickets = async () => {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+    try {
+      const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
+      const { data } = await axios.get('/api/complaints/all', config);
+      setTickets(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const markResolved = async (id) => {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+    try {
+      const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
+      await axios.put(`/api/complaints/${id}`, { status: 'resolved' }, config);
+      toast.success('Ticket Marked Resolved');
+      fetchTickets(); // Refresh
+    } catch (error) {
+      toast.error('Failed to update ticket');
+    }
+  };
+
+  return (
+    <div className="grid gap-4">
+      {tickets.map(ticket => (
+        <div key={ticket._id} className="glass p-6 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex-1">
+            <div className="flex items-center space-x-2 mb-2">
+              <span className="text-xs font-bold uppercase bg-slate-100 text-slate-600 px-2 py-1 rounded">{ticket.category}</span>
+              <span className="text-sm text-slate-500">Raised by: <span className="font-bold text-indigo-600">{ticket.resident?.name} ({ticket.resident?.flatNumber})</span></span>
+            </div>
+            <h4 className="text-lg font-bold dark:text-white">{ticket.title}</h4>
+            <p className="text-slate-600 dark:text-slate-400">{ticket.description}</p>
+          </div>
+          
+          {ticket.status === 'open' ? (
+            <button onClick={() => markResolved(ticket._id)} className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition shadow-lg whitespace-nowrap">
+              Mark Resolved
+            </button>
+          ) : (
+             <span className="flex items-center text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full border border-green-200 whitespace-nowrap">
+               <CheckCircle size={16} className="mr-1"/> Resolved
+             </span>
+          )}
+        </div>
+      ))}
+      {tickets.length === 0 && <div className="glass p-8 text-center text-slate-500">No active complaints.</div>}
     </div>
   );
 };
