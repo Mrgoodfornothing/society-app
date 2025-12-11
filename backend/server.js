@@ -9,6 +9,7 @@ const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
 const billRoutes = require('./routes/billRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const noticeRoutes = require('./routes/noticeRoutes');
 
 // Connect to Database
 connectDB();
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use('/api/users', userRoutes);
 app.use('/api/bills', billRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/notices', noticeRoutes);
 
 app.get('/', (req, res) => {
   res.send('Society App Backend is Running!');

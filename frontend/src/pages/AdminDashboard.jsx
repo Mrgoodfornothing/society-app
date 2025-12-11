@@ -4,7 +4,7 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { motion } from 'framer-motion';
 import { 
-  Users, FileText, Bell, LogOut, Plus, LayoutDashboard, X, Check 
+  Users, FileText, Bell, LogOut, Plus, LayoutDashboard, X, Check, MessageCircle
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -151,11 +151,117 @@ const BillsTab = ({ residents, openModal }) => (
   </div>
 );
 
-const NoticesTab = () => (
-  <div className="glass p-8 rounded-xl text-center">
-    <p className="text-slate-500">Notice Board Feature Coming Soon.</p>
-  </div>
-);
+// --- NOTICES TAB (With WhatsApp Share) ---
+const NoticesTab = () => {
+  const [notices, setNotices] = useState([]);
+  const [formData, setFormData] = useState({ title: '', description: '', type: 'info' });
+  const [loading, setLoading] = useState(false);
+
+  // Fetch notices on load
+  useEffect(() => {
+    fetchNotices();
+  }, []);
+
+  const fetchNotices = async () => {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+    try {
+      const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
+      const { data } = await axios.get('/api/notices', config);
+      setNotices(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+    try {
+      const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
+      await axios.post('/api/notices', formData, config);
+      toast.success('Notice Posted!');
+      setFormData({ title: '', description: '', type: 'info' });
+      fetchNotices(); // Refresh list
+    } catch (error) {
+      toast.error('Failed to post notice');
+    }
+    setLoading(false);
+  };
+
+  // WhatsApp Share Logic
+  const shareToWhatsApp = (notice) => {
+    const text = `📢 *Society Notice: ${notice.title}*\n\n${notice.description}\n\n- Secretary`;
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 1. CREATE FORM */}
+      <div className="glass p-6 rounded-xl">
+        <h3 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">Post New Announcement</h3>
+        <form onSubmit={handleCreate} className="space-y-4">
+          <input 
+            type="text" 
+            placeholder="Title (e.g., Water Tank Cleaning)" 
+            className="input-field"
+            value={formData.title}
+            onChange={(e) => setFormData({...formData, title: e.target.value})}
+            required
+          />
+          <textarea 
+            placeholder="Description..." 
+            className="input-field h-24"
+            value={formData.description}
+            onChange={(e) => setFormData({...formData, description: e.target.value})}
+            required
+          ></textarea>
+          <div className="flex items-center space-x-4">
+            <select 
+              className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+              value={formData.type}
+              onChange={(e) => setFormData({...formData, type: e.target.value})}
+            >
+              <option value="info">ℹ️ Info</option>
+              <option value="urgent">🚨 Urgent</option>
+              <option value="event">🎉 Event</option>
+            </select>
+            <button disabled={loading} className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-indigo-700 transition w-full">
+              {loading ? 'Posting...' : 'Post Notice'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* 2. NOTICE LIST */}
+      <div className="grid gap-4">
+        {notices.map((notice) => (
+          <div key={notice._id} className="glass p-5 rounded-xl border-l-4 border-l-indigo-500 relative">
+             <div className="flex justify-between items-start">
+                <div>
+                   <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
+                      notice.type === 'urgent' ? 'bg-red-100 text-red-600' : 
+                      notice.type === 'event' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+                   }`}>{notice.type}</span>
+                   <h4 className="text-lg font-bold mt-2 text-slate-800 dark:text-white">{notice.title}</h4>
+                   <p className="text-slate-600 dark:text-slate-300 mt-1">{notice.description}</p>
+                   <p className="text-xs text-slate-400 mt-2">{new Date(notice.createdAt).toLocaleDateString()}</p>
+                </div>
+                <button 
+                  onClick={() => shareToWhatsApp(notice)}
+                  className="bg-green-500 text-white p-2 rounded-full hover:bg-green-600 transition shadow-lg"
+                  title="Share to WhatsApp Group"
+                >
+                  <MessageCircle size={20} />
+                </button>
+             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 // --- MODAL COMPONENT ---
 const CreateBillModal = ({ residents, closeModal, token }) => {
