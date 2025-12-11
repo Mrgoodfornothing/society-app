@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import AdminAnalytics from './AdminAnalytics'; // <--- The new Analytics Component
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -14,10 +15,11 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [user, setUser] = useState({});
   const [residents, setResidents] = useState([]);
+  const [allBills, setAllBills] = useState([]);
   
   // Sidebar States
   const [showBillModal, setShowBillModal] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // <--- NEW: Mobile State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const userInfo = localStorage.getItem('userInfo');
@@ -30,6 +32,7 @@ const AdminDashboard = () => {
       }
       setUser(parsedUser);
       fetchResidents(parsedUser.token);
+      fetchAllBills(parsedUser.token); // <--- FIXED: Now calling the fetch function!
     }
   }, [navigate]);
 
@@ -38,6 +41,17 @@ const AdminDashboard = () => {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       const { data } = await axios.get('/api/users', config);
       setResidents(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const fetchAllBills = async (token) => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      // Using the /all endpoint we created
+      const { data } = await axios.get('/api/bills/all', config); 
+      setAllBills(data);
     } catch (error) {
       console.error(error);
     }
@@ -143,7 +157,9 @@ const AdminDashboard = () => {
         <main className="flex-1 overflow-y-auto p-4 sm:p-8 relative">
            <div className="absolute top-0 left-0 w-full h-full bg-slate-50 dark:bg-slate-900 -z-10"></div>
            
-           {activeTab === 'overview' && <OverviewTab residentsCount={residents.length} />}
+           {/* --- FIXED: REPLACED OverviewTab WITH AdminAnalytics --- */}
+           {activeTab === 'overview' && <AdminAnalytics residents={residents} bills={allBills} />}
+           
            {activeTab === 'residents' && <ResidentsTab residents={residents} />}
            {activeTab === 'bills' && <BillsTab residents={residents} openModal={() => setShowBillModal(true)} />}
            {activeTab === 'notices' && <NoticesTab />}
@@ -165,17 +181,10 @@ const AdminDashboard = () => {
 
 // --- SUB COMPONENTS ---
 
-const OverviewTab = ({ residentsCount }) => (
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-    <StatCard title="Total Residents" value={residentsCount} icon={<Users />} color="bg-blue-500" />
-    <StatCard title="Total Revenue" value="₹ 0" icon={<FileText />} color="bg-green-500" />
-  </div>
-);
-
 const ResidentsTab = ({ residents }) => (
-  <div className="glass p-6 rounded-xl overflow-x-auto"> {/* Added overflow-x-auto for small screens */}
+  <div className="glass p-6 rounded-xl overflow-x-auto">
     <h3 className="font-bold mb-4 text-slate-700 dark:text-white">Resident List</h3>
-    <table className="w-full text-left min-w-[600px]"> {/* Added min-width to prevent squishing */}
+    <table className="w-full text-left min-w-[600px]">
       <thead>
         <tr className="text-slate-400 text-sm border-b border-slate-200 dark:border-slate-700">
           <th className="pb-3">Name</th>
@@ -377,11 +386,6 @@ const SidebarItem = ({ icon, label, active, onClick }) => (
   </button>
 );
 
-const StatCard = ({ title, value, icon, color }) => (
-  <div className="glass p-6 rounded-xl flex items-center space-x-4">
-    <div className={`p-4 rounded-lg text-white shadow-lg ${color}`}>{icon}</div>
-    <div><p className="text-slate-500 text-sm">{title}</p><h3 className="text-2xl font-bold dark:text-white">{value}</h3></div>
-  </div>
-);
+// --- NOTE: StatCard removed as it's now inside AdminAnalytics.jsx or unused ---
 
 export default AdminDashboard;
