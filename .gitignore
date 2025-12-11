@@ -1,0 +1,12 @@
+# Ignore the heavy folders
+node_modules/
+
+# Ignore the Secrets (CRITICAL)
+.env
+backend/.env
+
+# Ignore Mac system files
+.DS_Store
+
+# Ignore Build files
+dist/

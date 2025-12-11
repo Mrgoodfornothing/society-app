@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base Background Styles (Smooth Transition) */
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-300;
+  }
+}
+
+/* Glass Effect Class - Makes things look expensive */
+.glass {
+  @apply bg-white/70 dark:bg-slate-800/60 backdrop-blur-lg border border-white/20 dark:border-slate-700 shadow-xl;
+}
+
+/* Custom Input Field Style */
+.input-field {
+  @apply w-full px-4 py-3 rounded-lg bg-white/50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all;
+}
