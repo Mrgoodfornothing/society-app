@@ -19,7 +19,14 @@ const Login = () => {
       const { data } = await axios.post('/api/users/login', { email, password });
       localStorage.setItem('userInfo', JSON.stringify(data));
       toast.success(`Welcome back, ${data.name}!`);
-      navigate('/dashboard');
+     // ... previous code (localStorage, toast) ...
+      
+      // Smart Redirect based on Role
+      if (data.role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Login Failed');
     }
