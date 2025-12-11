@@ -2,14 +2,12 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
-  // ... Your existing config keys ...
-  // (Keep the keys you pasted earlier!)
-  apiKey: "AIzaSy...", 
-  authDomain: "societyapp-xyz.firebaseapp.com",
-  projectId: "societyapp-...",
-  storageBucket: "...",
-  messagingSenderId: "...",
-  appId: "..."
+  apiKey: "AIzaSyCojp5QnU3CWOi1PnhR49LQYpvESuvCOuw",
+  authDomain: "societyapp-7e498.firebaseapp.com",
+  projectId: "societyapp-7e498",
+  storageBucket: "societyapp-7e498.firebasestorage.app",
+  messagingSenderId: "668081681538",
+  appId: "1:668081681538:web:42e68054bfab34faaf709b"
 };
 
 const app = initializeApp(firebaseConfig);
