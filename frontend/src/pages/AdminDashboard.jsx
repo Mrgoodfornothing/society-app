@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Users, FileText, Bell, LogOut, Plus, LayoutDashboard, X, Check, MessageCircle, Wrench, CheckCircle
+  Users, FileText, Bell, LogOut, Plus, LayoutDashboard, X, Check, MessageCircle, Wrench, CheckCircle, Menu
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -13,10 +13,11 @@ const AdminDashboard = () => {
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('overview');
   const [user, setUser] = useState({});
-  const [residents, setResidents] = useState([]); // List of residents
+  const [residents, setResidents] = useState([]);
   
-  // Modal State
+  // Sidebar States
   const [showBillModal, setShowBillModal] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // <--- NEW: Mobile State
 
   useEffect(() => {
     const userInfo = localStorage.getItem('userInfo');
@@ -28,7 +29,7 @@ const AdminDashboard = () => {
         navigate('/dashboard');
       }
       setUser(parsedUser);
-      fetchResidents(parsedUser.token); // Load residents on start
+      fetchResidents(parsedUser.token);
     }
   }, [navigate]);
 
@@ -47,10 +48,16 @@ const AdminDashboard = () => {
     navigate('/');
   };
 
+  // Helper to close mobile menu on click
+  const handleNavClick = (tab) => {
+    setActiveTab(tab);
+    setIsMobileMenuOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex font-sans transition-colors duration-300">
       
-      {/* SIDEBAR */}
+      {/* 1. DESKTOP SIDEBAR (Hidden on Mobile) */}
       <div className="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col z-20 shadow-xl hidden md:flex">
         <div className="p-6 flex items-center space-x-3">
           <div className="bg-indigo-600 p-2 rounded-lg">
@@ -75,16 +82,65 @@ const AdminDashboard = () => {
         </div>
       </div>
 
+      {/* 2. MOBILE MENU OVERLAY (Visible only when open) */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 flex md:hidden">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            ></motion.div>
+            
+            <motion.div 
+              initial={{ x: -300 }} animate={{ x: 0 }} exit={{ x: -300 }}
+              className="relative w-64 h-full bg-white dark:bg-slate-800 shadow-2xl flex flex-col"
+            >
+              <div className="p-6 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
+                <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">Admin Panel</span>
+                <button onClick={() => setIsMobileMenuOpen(false)}><X className="text-slate-500" /></button>
+              </div>
+              
+              <nav className="flex-1 px-4 space-y-2 mt-4">
+                <SidebarItem icon={<LayoutDashboard size={20} />} label="Overview" active={activeTab === 'overview'} onClick={() => handleNavClick('overview')} />
+                <SidebarItem icon={<Users size={20} />} label="Residents" active={activeTab === 'residents'} onClick={() => handleNavClick('residents')} />
+                <SidebarItem icon={<FileText size={20} />} label="Manage Bills" active={activeTab === 'bills'} onClick={() => handleNavClick('bills')} />
+                <SidebarItem icon={<Bell size={20} />} label="Notices" active={activeTab === 'notices'} onClick={() => handleNavClick('notices')} />
+                <SidebarItem icon={<Wrench size={20} />} label="Helpdesk" active={activeTab === 'helpdesk'} onClick={() => handleNavClick('helpdesk')} />
+              </nav>
+
+              <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+                <button onClick={logoutHandler} className="flex items-center space-x-3 w-full p-3 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
+                  <LogOut size={20} />
+                  <span>Logout</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-16 glass flex items-center justify-between px-8 z-10">
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-white capitalize">{activeTab} Management</h2>
+        <header className="h-16 glass flex items-center justify-between px-4 sm:px-8 z-10 sticky top-0">
+          <div className="flex items-center">
+            {/* MOBILE MENU BUTTON */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)} 
+              className="md:hidden p-2 mr-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200"
+            >
+              <Menu size={24} />
+            </button>
+            <h2 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white capitalize">
+              {activeTab} Management
+            </h2>
+          </div>
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
              {theme === 'dark' ? '🌙' : '☀️'}
           </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-8 relative">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8 relative">
            <div className="absolute top-0 left-0 w-full h-full bg-slate-50 dark:bg-slate-900 -z-10"></div>
            
            {activeTab === 'overview' && <OverviewTab residentsCount={residents.length} />}
@@ -117,9 +173,9 @@ const OverviewTab = ({ residentsCount }) => (
 );
 
 const ResidentsTab = ({ residents }) => (
-  <div className="glass p-6 rounded-xl">
+  <div className="glass p-6 rounded-xl overflow-x-auto"> {/* Added overflow-x-auto for small screens */}
     <h3 className="font-bold mb-4 text-slate-700 dark:text-white">Resident List</h3>
-    <table className="w-full text-left">
+    <table className="w-full text-left min-w-[600px]"> {/* Added min-width to prevent squishing */}
       <thead>
         <tr className="text-slate-400 text-sm border-b border-slate-200 dark:border-slate-700">
           <th className="pb-3">Name</th>
@@ -153,15 +209,13 @@ const BillsTab = ({ residents, openModal }) => (
   </div>
 );
 
-// --- NOTICES TAB (With WhatsApp Share) ---
+// --- NOTICES TAB ---
 const NoticesTab = () => {
   const [notices, setNotices] = useState([]);
   const [formData, setFormData] = useState({ title: '', description: '', type: 'info' });
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchNotices();
-  }, []);
+  useEffect(() => { fetchNotices(); }, []);
 
   const fetchNotices = async () => {
     const userInfo = JSON.parse(localStorage.getItem('userInfo'));
@@ -169,9 +223,7 @@ const NoticesTab = () => {
       const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
       const { data } = await axios.get('/api/notices', config);
       setNotices(data);
-    } catch (error) {
-      console.error(error);
-    }
+    } catch (error) { console.error(error); }
   };
 
   const handleCreate = async (e) => {
@@ -184,9 +236,7 @@ const NoticesTab = () => {
       toast.success('Notice Posted!');
       setFormData({ title: '', description: '', type: 'info' });
       fetchNotices();
-    } catch (error) {
-      toast.error('Failed to post notice');
-    }
+    } catch (error) { toast.error('Failed to post notice'); }
     setLoading(false);
   };
 
@@ -198,61 +248,31 @@ const NoticesTab = () => {
 
   return (
     <div className="space-y-6">
-      {/* 1. CREATE FORM */}
       <div className="glass p-6 rounded-xl">
         <h3 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">Post New Announcement</h3>
         <form onSubmit={handleCreate} className="space-y-4">
-          <input 
-            type="text" 
-            placeholder="Title (e.g., Water Tank Cleaning)" 
-            className="input-field"
-            value={formData.title}
-            onChange={(e) => setFormData({...formData, title: e.target.value})}
-            required
-          />
-          <textarea 
-            placeholder="Description..." 
-            className="input-field h-24"
-            value={formData.description}
-            onChange={(e) => setFormData({...formData, description: e.target.value})}
-            required
-          ></textarea>
-          <div className="flex items-center space-x-4">
-            <select 
-              className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-              value={formData.type}
-              onChange={(e) => setFormData({...formData, type: e.target.value})}
-            >
-              <option value="info">ℹ️ Info</option>
-              <option value="urgent">🚨 Urgent</option>
-              <option value="event">🎉 Event</option>
+          <input type="text" placeholder="Title" className="input-field" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} required />
+          <textarea placeholder="Description..." className="input-field h-24" value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} required></textarea>
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <select className="w-full sm:w-auto p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value})}>
+              <option value="info">ℹ️ Info</option><option value="urgent">🚨 Urgent</option><option value="event">🎉 Event</option>
             </select>
-            <button disabled={loading} className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-indigo-700 transition w-full">
+            <button disabled={loading} className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-indigo-700 transition w-full sm:w-auto">
               {loading ? 'Posting...' : 'Post Notice'}
             </button>
           </div>
         </form>
       </div>
-
-      {/* 2. NOTICE LIST */}
       <div className="grid gap-4">
         {notices.map((notice) => (
           <div key={notice._id} className="glass p-5 rounded-xl border-l-4 border-l-indigo-500 relative">
              <div className="flex justify-between items-start">
                 <div>
-                   <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
-                      notice.type === 'urgent' ? 'bg-red-100 text-red-600' : 
-                      notice.type === 'event' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
-                   }`}>{notice.type}</span>
+                   <span className="text-xs font-bold px-2 py-1 rounded uppercase bg-indigo-100 text-indigo-600">{notice.type}</span>
                    <h4 className="text-lg font-bold mt-2 text-slate-800 dark:text-white">{notice.title}</h4>
                    <p className="text-slate-600 dark:text-slate-300 mt-1">{notice.description}</p>
-                   <p className="text-xs text-slate-400 mt-2">{new Date(notice.createdAt).toLocaleDateString()}</p>
                 </div>
-                <button 
-                  onClick={() => shareToWhatsApp(notice)}
-                  className="bg-green-500 text-white p-2 rounded-full hover:bg-green-600 transition shadow-lg"
-                  title="Share to WhatsApp Group"
-                >
+                <button onClick={() => shareToWhatsApp(notice)} className="bg-green-500 text-white p-2 rounded-full hover:bg-green-600 transition shadow-lg">
                   <MessageCircle size={20} />
                 </button>
              </div>
@@ -263,13 +283,10 @@ const NoticesTab = () => {
   );
 };
 
-// --- HELPDESK TAB (NEW FEATURE) ---
+// --- HELPDESK TAB ---
 const HelpdeskTab = () => {
   const [tickets, setTickets] = useState([]);
-
-  useEffect(() => {
-    fetchTickets();
-  }, []);
+  useEffect(() => { fetchTickets(); }, []);
 
   const fetchTickets = async () => {
     const userInfo = JSON.parse(localStorage.getItem('userInfo'));
@@ -277,9 +294,7 @@ const HelpdeskTab = () => {
       const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
       const { data } = await axios.get('/api/complaints/all', config);
       setTickets(data);
-    } catch (error) {
-      console.error(error);
-    }
+    } catch (error) { console.error(error); }
   };
 
   const markResolved = async (id) => {
@@ -287,34 +302,27 @@ const HelpdeskTab = () => {
     try {
       const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
       await axios.put(`/api/complaints/${id}`, { status: 'resolved' }, config);
-      toast.success('Ticket Marked Resolved');
-      fetchTickets(); // Refresh
-    } catch (error) {
-      toast.error('Failed to update ticket');
-    }
+      toast.success('Ticket Resolved');
+      fetchTickets();
+    } catch (error) { toast.error('Failed'); }
   };
 
   return (
     <div className="grid gap-4">
       {tickets.map(ticket => (
-        <div key={ticket._id} className="glass p-6 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4">
+        <div key={ticket._id} className="glass p-6 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex-1">
             <div className="flex items-center space-x-2 mb-2">
               <span className="text-xs font-bold uppercase bg-slate-100 text-slate-600 px-2 py-1 rounded">{ticket.category}</span>
-              <span className="text-sm text-slate-500">Raised by: <span className="font-bold text-indigo-600">{ticket.resident?.name} ({ticket.resident?.flatNumber})</span></span>
+              <span className="text-sm text-slate-500">By: <span className="font-bold text-indigo-600">{ticket.resident?.name} ({ticket.resident?.flatNumber})</span></span>
             </div>
             <h4 className="text-lg font-bold dark:text-white">{ticket.title}</h4>
             <p className="text-slate-600 dark:text-slate-400">{ticket.description}</p>
           </div>
-          
           {ticket.status === 'open' ? (
-            <button onClick={() => markResolved(ticket._id)} className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition shadow-lg whitespace-nowrap">
-              Mark Resolved
-            </button>
+            <button onClick={() => markResolved(ticket._id)} className="w-full md:w-auto bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition shadow-lg">Mark Resolved</button>
           ) : (
-             <span className="flex items-center text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full border border-green-200 whitespace-nowrap">
-               <CheckCircle size={16} className="mr-1"/> Resolved
-             </span>
+             <span className="flex items-center text-green-600 font-bold bg-green-50 px-3 py-1 rounded-full border border-green-200"><CheckCircle size={16} className="mr-1"/> Resolved</span>
           )}
         </div>
       ))}
@@ -323,25 +331,18 @@ const HelpdeskTab = () => {
   );
 };
 
-// --- MODAL COMPONENT ---
+// --- MODAL ---
 const CreateBillModal = ({ residents, closeModal, token }) => {
-  const [formData, setFormData] = useState({
-    residentId: '',
-    title: 'Monthly Maintenance',
-    amount: '',
-    dueDate: ''
-  });
+  const [formData, setFormData] = useState({ residentId: '', title: 'Monthly Maintenance', amount: '', dueDate: '' });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       await axios.post('/api/bills', formData, config);
-      toast.success('Bill Created Successfully!');
+      toast.success('Bill Created!');
       closeModal();
-    } catch (error) {
-      toast.error('Failed to create bill');
-    }
+    } catch (error) { toast.error('Failed to create bill'); }
   };
 
   return (
@@ -349,41 +350,20 @@ const CreateBillModal = ({ residents, closeModal, token }) => {
       <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="glass w-full max-w-lg p-6 rounded-xl relative">
         <button onClick={closeModal} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X /></button>
         <h2 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">Issue New Bill</h2>
-        
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm text-slate-500 mb-1">Select Resident</label>
-            <select 
-              required
-              className="w-full p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-indigo-500"
-              onChange={(e) => setFormData({...formData, residentId: e.target.value})}
-            >
+            <select required className="w-full p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" onChange={(e) => setFormData({...formData, residentId: e.target.value})}>
               <option value="">-- Choose Flat --</option>
-              {residents.map(r => (
-                <option key={r._id} value={r._id}>{r.name} - {r.flatNumber}</option>
-              ))}
+              {residents.map(r => <option key={r._id} value={r._id}>{r.name} - {r.flatNumber}</option>)}
             </select>
           </div>
-
-          <div>
-            <label className="block text-sm text-slate-500 mb-1">Bill Title</label>
-            <input type="text" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="input-field" />
-          </div>
-
+          <div><label className="block text-sm text-slate-500 mb-1">Bill Title</label><input type="text" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="input-field" /></div>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-slate-500 mb-1">Amount (₹)</label>
-              <input type="number" required placeholder="2000" onChange={(e) => setFormData({...formData, amount: e.target.value})} className="input-field" />
-            </div>
-            <div>
-              <label className="block text-sm text-slate-500 mb-1">Due Date</label>
-              <input type="date" required onChange={(e) => setFormData({...formData, dueDate: e.target.value})} className="input-field" />
-            </div>
+            <div><label className="block text-sm text-slate-500 mb-1">Amount (₹)</label><input type="number" required placeholder="2000" onChange={(e) => setFormData({...formData, amount: e.target.value})} className="input-field" /></div>
+            <div><label className="block text-sm text-slate-500 mb-1">Due Date</label><input type="date" required onChange={(e) => setFormData({...formData, dueDate: e.target.value})} className="input-field" /></div>
           </div>
-
-          <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition mt-4">
-            Generate Bill
-          </button>
+          <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition mt-4">Generate Bill</button>
         </form>
       </motion.div>
     </div>
