@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { toast } from 'react-toastify';
+import ChatTab from './ChatTab';
+import { MessageSquare } from 'lucide-react'; // Import Icon
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -147,6 +149,7 @@ const Dashboard = () => {
         <nav className="flex-1 p-4 space-y-2">
           <SidebarItem icon={<Home size={20} />} text="Overview" active={activeTab === 'overview'} isOpen={isSidebarOpen} onClick={() => setActiveTab('overview')} />
           <SidebarItem icon={<CreditCard size={20} />} text="My Bills" active={activeTab === 'bills'} isOpen={isSidebarOpen} onClick={() => setActiveTab('bills')} />
+          <SidebarItem icon={<MessageSquare size={20} />} text="Group Chat" active={activeTab === 'chat'} isOpen={isSidebarOpen} onClick={() => setActiveTab('chat')} />
           <SidebarItem icon={<Bell size={20} />} text="Community" active={activeTab === 'community'} isOpen={isSidebarOpen} onClick={() => setActiveTab('community')} />
           <SidebarItem icon={<Wrench size={20} />} text="Helpdesk" active={activeTab === 'helpdesk'} isOpen={isSidebarOpen} onClick={() => setActiveTab('helpdesk')} />
           <SidebarItem icon={<Phone size={20} />} text="Directory" active={activeTab === 'directory'} isOpen={isSidebarOpen} onClick={() => setActiveTab('directory')} />
@@ -185,6 +188,7 @@ const Dashboard = () => {
               <nav className="flex-1 p-4 space-y-2">
                 <SidebarItem icon={<Home size={20} />} text="Overview" active={activeTab === 'overview'} isOpen={true} onClick={() => handleNavClick('overview')} />
                 <SidebarItem icon={<CreditCard size={20} />} text="My Bills" active={activeTab === 'bills'} isOpen={true} onClick={() => handleNavClick('bills')} />
+                <SidebarItem icon={<MessageSquare size={20} />} text="Group Chat" active={activeTab === 'chat'} isOpen={true} onClick={() => handleNavClick('chat')} />
                 <SidebarItem icon={<Bell size={20} />} text="Community" active={activeTab === 'community'} isOpen={true} onClick={() => handleNavClick('community')} />
                 <SidebarItem icon={<Wrench size={20} />} text="Helpdesk" active={activeTab === 'helpdesk'} isOpen={true} onClick={() => handleNavClick('helpdesk')} />
                 <SidebarItem icon={<Phone size={20} />} text="Directory" active={activeTab === 'directory'} isOpen={true} onClick={() => handleNavClick('directory')} />
@@ -257,6 +261,12 @@ const Dashboard = () => {
                 </div>
              </div>
            )}
+
+           {activeTab === 'chat' && (
+              <div className="max-w-4xl mx-auto">
+                <ChatTab user={user} />
+                  </div>
+                    )}
 
            {/* TAB 3: NOTICES */}
            {activeTab === 'community' && <div><h3 className="text-xl sm:text-2xl font-bold mb-6 text-slate-800 dark:text-white">Community Notices</h3>
@@ -340,6 +350,7 @@ const Dashboard = () => {
                </div>
              </div>
            )}
+
 
         </main>
       </div>
