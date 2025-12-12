@@ -35,7 +35,7 @@ export default defineConfig({
       }
     })
   ],
-  server: {
+  /*server: {
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
@@ -43,4 +43,16 @@ export default defineConfig({
       },
     },
   },
+})*/
+
+// inside defineConfig...
+server: {
+  proxy: {
+    '/api': {
+      target: 'http://localhost:5001', // <--- CHANGE THIS TO 5001
+      changeOrigin: true,
+      secure: false,
+    },
+  },
+}
 })

@@ -7,7 +7,9 @@ const http = require('http');
 const { Server } = require('socket.io');
 const Message = require('./models/messageModel');
 
-const port = process.env.PORT || 5000;
+//const port = process.env.PORT || 5000;
+// backend/server.js
+const port = process.env.PORT || 5001; // Change 5000 to 5001
 
 connectDB();
 const app = express();

@@ -5,11 +5,7 @@ import { Send } from 'lucide-react';
 // CHANGE THIS LINE:
 // const socket = io.connect("http://localhost:5000"); 
 
-// TO THIS:
-const socket = io("http://localhost:5000", {
-  transports: ["websocket"], // <--- Forces a cleaner connection that AdBlockers ignore
-  withCredentials: true,
-});
+const socket = io("http://localhost:5001");
 
 
 const ChatTab = ({ user }) => {
@@ -34,7 +30,8 @@ const ChatTab = ({ user }) => {
     // 3. Fetch History from Database
     const fetchHistory = async () => {
       try {
-        const response = await fetch(`http://localhost:5000/api/messages/${ROOM}`);
+        //const response = await fetch(`http://localhost:5000/api/messages/${ROOM}`);
+        const response = await fetch(`http://localhost:5001/api/messages/${ROOM}`);
         const data = await response.json();
         console.log("📜 History loaded:", data.length, "messages");
         setMessageList(data);
