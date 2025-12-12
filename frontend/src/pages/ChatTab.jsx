@@ -2,8 +2,15 @@ import { useEffect, useState, useRef } from 'react';
 import io from 'socket.io-client';
 import { Send } from 'lucide-react';
 
-// Initialize socket outside the component to prevent re-connections
-const socket = io.connect("http://localhost:5000");
+// CHANGE THIS LINE:
+// const socket = io.connect("http://localhost:5000"); 
+
+// TO THIS:
+const socket = io("http://localhost:5000", {
+  transports: ["websocket"], // <--- Forces a cleaner connection that AdBlockers ignore
+  withCredentials: true,
+});
+
 
 const ChatTab = ({ user }) => {
   const [currentMessage, setCurrentMessage] = useState("");
