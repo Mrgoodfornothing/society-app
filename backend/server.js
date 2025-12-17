@@ -16,7 +16,7 @@ const app = express();
 //app.use(cors());
 // Update CORS to allow your future frontend URL
 app.use(cors({
-  origin: ["http://localhost:5173", "https://society-app-dusky.vercel.app/"],
+  origin: ["http://localhost:5173", "https://society-app-dusky.vercel.app"],
   credentials: true
 }));
 app.use(express.json());
@@ -53,7 +53,7 @@ const server = http.createServer(app);
 // Update Socket.io CORS too
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "https://society-app-dusky.vercel.app/"],
+    origin: ["http://localhost:5173", "https://society-app-dusky.vercel.app"],
     methods: ["GET", "POST"],
     credentials: true
   },
