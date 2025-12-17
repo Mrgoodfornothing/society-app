@@ -1,9 +1,14 @@
+// src/pages/Register.jsx
 import { useState } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { motion } from 'framer-motion'; 
 import { User, Mail, Lock, Phone, Home, LayoutDashboard } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+
+// 1. ADDED: Firebase Imports
+import { auth, provider } from '../firebase';
+import { signInWithPopup } from 'firebase/auth';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -19,21 +24,41 @@ const Register = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // 2. ADDED: Normal Register Handler
   const submitHandler = async (e) => {
     e.preventDefault();
     try {
-      // 1. Send data to Backend
       const { data } = await axios.post('/api/users', formData);
-      
-      // 2. Save Login info
       localStorage.setItem('userInfo', JSON.stringify(data));
-      
       toast.success('Registration Successful!');
-      
-      // 3. Go to Dashboard
       navigate('/dashboard');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Registration Failed');
+    }
+  };
+
+  // 3. ADDED: Google Login Handler (Same as Login Page)
+  const googleLoginHandler = async () => {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Send Google Data to Backend (Backend handles "Create if new")
+      const { data } = await axios.post('/api/users/google-login', {
+        name: user.displayName,
+        email: user.email,
+        googlePhoto: user.photoURL
+      });
+
+      localStorage.setItem('userInfo', JSON.stringify(data));
+      toast.success(`Welcome, ${data.name}!`);
+
+      if (data.role === 'admin') navigate('/admin');
+      else navigate('/dashboard');
+
+    } catch (error) {
+      console.error(error);
+      toast.error('Google Sign-In Failed');
     }
   };
 
@@ -54,6 +79,21 @@ const Register = () => {
           </div>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Join Society Connect</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm">Create your resident account</p>
+        </div>
+
+        {/* 4. UPDATED: Google Button now works because function exists */}
+        <button 
+          type="button"
+          onClick={googleLoginHandler}
+          className="w-full bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-slate-700 dark:text-white font-semibold py-3 px-6 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-600 transition flex items-center justify-center gap-2 mb-4"
+        >
+          <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
+          Sign up with Google
+        </button>
+
+        <div className="relative mb-4">
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300 dark:border-slate-600"></div></div>
+          <div className="relative flex justify-center text-sm"><span className="px-2 bg-white/0 dark:bg-slate-800/0 text-gray-500 bg-white/50 backdrop-blur-sm">Or register with email</span></div>
         </div>
 
         <form onSubmit={submitHandler} className="space-y-4">

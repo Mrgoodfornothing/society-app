@@ -10,3 +10,5 @@ backend/.env
 
 # Ignore Build files
 dist/
+
+build

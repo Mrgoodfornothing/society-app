@@ -1,17 +1,17 @@
-// routes/userRoutes.js
 const express = require('express');
 const router = express.Router();
-const { registerUser, authUser, getResidents, googleLogin } = require('../controllers/userController');
-const { protect, admin } = require('../middleware/authMiddleware');
+const { 
+  registerUser, 
+  authUser, 
+  getMe, 
+  googleLogin // <--- Import the correct function name
+} = require('../controllers/userController'); 
 
-// This handles the Registration
+const { protect } = require('../middleware/authMiddleware');
+
 router.post('/', registerUser);
-
-// This handles the Login
 router.post('/login', authUser);
-
-router.get('/', protect, admin, getResidents);
-
-router.post('/google-login', googleLogin); // <--- Add this
+router.post('/google-login', googleLogin); // <--- FIXED: Matches Frontend URL
+router.get('/me', protect, getMe);
 
 module.exports = router;

@@ -11,8 +11,10 @@ const userSchema = mongoose.Schema({
     enum: ['admin', 'resident'], // Only two types of users
     default: 'resident'
   },
-  phone: { type: String, required: true }
-}, {
+  phone: { type: String, required: true },
+  isMuted: { type: Boolean, default: false },
+  mutedUntil: { type: Date, default: null }
+},{
   timestamps: true // Automatically adds 'createdAt' and 'updatedAt'
 });
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import AdminAnalytics from './AdminAnalytics'; // <--- The new Analytics Component
+import AdminAnalytics from './AdminAnalytics';
+import ChatTab from './ChatTab'; // <--- NEW: Import Chat Component
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -32,7 +33,7 @@ const AdminDashboard = () => {
       }
       setUser(parsedUser);
       fetchResidents(parsedUser.token);
-      fetchAllBills(parsedUser.token); // <--- FIXED: Now calling the fetch function!
+      fetchAllBills(parsedUser.token);
     }
   }, [navigate]);
 
@@ -49,7 +50,6 @@ const AdminDashboard = () => {
   const fetchAllBills = async (token) => {
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      // Using the /all endpoint we created
       const { data } = await axios.get('/api/bills/all', config); 
       setAllBills(data);
     } catch (error) {
@@ -71,7 +71,7 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex font-sans transition-colors duration-300">
       
-      {/* 1. DESKTOP SIDEBAR (Hidden on Mobile) */}
+      {/* 1. DESKTOP SIDEBAR */}
       <div className="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col z-20 shadow-xl hidden md:flex">
         <div className="p-6 flex items-center space-x-3">
           <div className="bg-indigo-600 p-2 rounded-lg">
@@ -82,6 +82,9 @@ const AdminDashboard = () => {
 
         <nav className="flex-1 px-4 space-y-2 mt-4">
           <SidebarItem icon={<LayoutDashboard size={20} />} label="Overview" active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
+          {/* <--- NEW: Added Chat Tab Here */}
+          <SidebarItem icon={<MessageCircle size={20} />} label="Community Chat" active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
+          
           <SidebarItem icon={<Users size={20} />} label="Residents" active={activeTab === 'residents'} onClick={() => setActiveTab('residents')} />
           <SidebarItem icon={<FileText size={20} />} label="Manage Bills" active={activeTab === 'bills'} onClick={() => setActiveTab('bills')} />
           <SidebarItem icon={<Bell size={20} />} label="Notices" active={activeTab === 'notices'} onClick={() => setActiveTab('notices')} />
@@ -96,7 +99,7 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* 2. MOBILE MENU OVERLAY (Visible only when open) */}
+      {/* 2. MOBILE MENU OVERLAY */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <div className="fixed inset-0 z-50 flex md:hidden">
@@ -117,6 +120,9 @@ const AdminDashboard = () => {
               
               <nav className="flex-1 px-4 space-y-2 mt-4">
                 <SidebarItem icon={<LayoutDashboard size={20} />} label="Overview" active={activeTab === 'overview'} onClick={() => handleNavClick('overview')} />
+                {/* <--- NEW: Added Chat Tab Here for Mobile */}
+                <SidebarItem icon={<MessageCircle size={20} />} label="Community Chat" active={activeTab === 'chat'} onClick={() => handleNavClick('chat')} />
+
                 <SidebarItem icon={<Users size={20} />} label="Residents" active={activeTab === 'residents'} onClick={() => handleNavClick('residents')} />
                 <SidebarItem icon={<FileText size={20} />} label="Manage Bills" active={activeTab === 'bills'} onClick={() => handleNavClick('bills')} />
                 <SidebarItem icon={<Bell size={20} />} label="Notices" active={activeTab === 'notices'} onClick={() => handleNavClick('notices')} />
@@ -146,7 +152,7 @@ const AdminDashboard = () => {
               <Menu size={24} />
             </button>
             <h2 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white capitalize">
-              {activeTab} Management
+              {activeTab === 'chat' ? 'Community Chat' : `${activeTab} Management`}
             </h2>
           </div>
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
@@ -157,9 +163,17 @@ const AdminDashboard = () => {
         <main className="flex-1 overflow-y-auto p-4 sm:p-8 relative">
            <div className="absolute top-0 left-0 w-full h-full bg-slate-50 dark:bg-slate-900 -z-10"></div>
            
-           {/* --- FIXED: REPLACED OverviewTab WITH AdminAnalytics --- */}
            {activeTab === 'overview' && <AdminAnalytics residents={residents} bills={allBills} />}
            
+           {/* <--- NEW: Chat Tab Content */}
+           {activeTab === 'chat' && (
+             <div className="h-full">
+               <h3 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">Live Discussion</h3>
+               {/* We pass the 'user' object so the ChatTab knows this is an Admin */}
+               <ChatTab user={user} />
+             </div>
+           )}
+
            {activeTab === 'residents' && <ResidentsTab residents={residents} />}
            {activeTab === 'bills' && <BillsTab residents={residents} openModal={() => setShowBillModal(true)} />}
            {activeTab === 'notices' && <NoticesTab />}
@@ -179,7 +193,7 @@ const AdminDashboard = () => {
   );
 };
 
-// --- SUB COMPONENTS ---
+// --- SUB COMPONENTS (UNCHANGED) ---
 
 const ResidentsTab = ({ residents }) => (
   <div className="glass p-6 rounded-xl overflow-x-auto">
@@ -385,7 +399,5 @@ const SidebarItem = ({ icon, label, active, onClick }) => (
     {icon} <span>{label}</span>
   </button>
 );
-
-// --- NOTE: StatCard removed as it's now inside AdminAnalytics.jsx or unused ---
 
 export default AdminDashboard;

@@ -151,4 +151,15 @@ const googleLogin = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, authUser, getResidents, googleLogin };
+
+const getMe = asyncHandler(async (req, res) => {
+  res.status(200).json(req.user);
+});
+
+module.exports = { 
+  registerUser, 
+  authUser, 
+  getResidents, 
+  getMe,
+  googleLogin, // <--- Export the "Good" function
+};
