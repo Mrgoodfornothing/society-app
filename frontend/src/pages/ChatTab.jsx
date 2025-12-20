@@ -200,6 +200,17 @@ const ChatTab = ({ user }) => {
     cancelAttachment();
   };
 
+  // --- DELETE HELPER ---
+  const handleDelete = (id, type) => {
+    socket.emit('delete_message', { 
+      messageId: id, 
+      userId: user._id, 
+      type: type, 
+      isAdmin: isAdmin 
+    });
+    setSelectedMsgId(null);
+  };
+
   // --- RENDER CONTENT ---
   const renderMessageContent = (msg) => {
       const fullUrl = `${BASE_URL}${msg.fileUrl}`;
@@ -300,11 +311,41 @@ const ChatTab = ({ user }) => {
         </div>
       </div>
 
+      {/* ADMIN PANEL */}
+      {showAdminPanel && isAdmin && (
+        <div className="bg-slate-100 dark:bg-slate-800 p-3 border-b border-indigo-200 grid grid-cols-2 gap-4 text-xs animate-slideDown shadow-inner">
+          <button 
+            onClick={() => socket.emit('admin_update_settings', { ...settings, adminsOnly: !settings.adminsOnly })}
+            className={`p-2 rounded flex items-center justify-center gap-2 font-bold transition ${settings.adminsOnly ? 'bg-red-500 text-white' : 'bg-white text-slate-800 shadow'}`}
+          >
+            <Lock size={14} /> {settings.adminsOnly ? "Unlock Chat" : "Lock Chat (Admins Only)"}
+          </button>
+          
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-700 p-2 rounded shadow justify-between">
+             <span className="text-slate-500 font-bold">Global Disappear:</span>
+             <select 
+               className="bg-transparent font-bold outline-none text-indigo-600"
+               onChange={(e) => socket.emit('admin_update_settings', { ...settings, globalDisappearingTime: Number(e.target.value) })}
+               value={settings.globalDisappearingTime}
+             >
+               <option value="0">Off (Permanent)</option>
+               <option value="30">30s (Test)</option>
+               <option value="3600">1 Hour</option>
+               <option value="86400">24 Hours</option>
+             </select>
+          </div>
+        </div>
+      )}
+
       {/* MESSAGES AREA */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-900/50" onClick={(e) => { e.stopPropagation(); setSelectedMsgId(null); setShowEmojiPicker(false); setShowAttachMenu(false); }}>
         {filteredMessages.map((msg, index) => {
           const isMe = msg.author === user.name;
           const isMsgAdmin = msg.role === 'admin';
+          
+          // --- RESTORED CHECK ---
+          const isRecent = (Date.now() - new Date(msg.createdAt).getTime()) < (60 * 60 * 1000); 
+
           return (
             <div key={index} className={`flex ${isMe ? 'justify-end' : 'justify-start'} relative`}>
               <div 
@@ -321,14 +362,31 @@ const ChatTab = ({ user }) => {
                 </div>
               </div>
               
-              {/* MENU */}
+              {/* MENU (RESTORED DELETE OPTIONS) */}
               {selectedMsgId === msg._id && (
                   <div className={`absolute top-full mt-2 z-30 bg-white dark:bg-slate-800 shadow-2xl rounded-xl border border-slate-200 w-64 ${isMe ? 'right-0' : 'left-0'}`}>
                       <div className="flex justify-between p-2 bg-slate-50 dark:bg-slate-900/50">
                           {REACTION_EMOJIS.map(emoji => <button key={emoji} onClick={() => { socket.emit('add_reaction', { messageId: selectedMsgId, userId: user._id, userName: user.name, emoji }); setSelectedMsgId(null); }} className="hover:scale-125 px-1">{emoji}</button>)}
                       </div>
                       <div className="py-1">
-                          <button onClick={() => { socket.emit('delete_message', { messageId: msg._id, userId: user._id, type: 'me', isAdmin }); setSelectedMsgId(null); }} className="w-full px-4 py-2 text-sm flex gap-2 hover:bg-slate-100 dark:hover:bg-slate-700"><Trash2 size={16}/> Delete for Me</button>
+                          {/* 1. Delete For Me */}
+                          <button onClick={() => handleDelete(msg._id, 'me')} className="w-full px-4 py-2 text-sm flex gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300">
+                              <Trash2 size={16}/> Delete for Me
+                          </button>
+
+                          {/* 2. Delete For Everyone (RESTORED) */}
+                          {(isAdmin || (isMe && isRecent)) && (
+                              <button onClick={() => handleDelete(msg._id, 'everyone')} className="w-full px-4 py-2 text-sm flex gap-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 border-t border-slate-100 dark:border-slate-700">
+                                  <Shield size={16}/> Delete for Everyone
+                              </button>
+                          )}
+                          
+                          {/* Info for User if expired */}
+                          {isMe && !isRecent && !isAdmin && (
+                              <div className="px-4 py-1 text-[10px] text-slate-400 italic text-center">
+                                  "Everyone" delete expired (1hr)
+                              </div>
+                          )}
                       </div>
                   </div>
               )}
@@ -338,7 +396,7 @@ const ChatTab = ({ user }) => {
         <div ref={bottomRef} />
       </div>
 
-      {/* --- PREVIEW BAR (Mobile Optimized) --- */}
+      {/* PREVIEW BAR (Mobile Optimized) */}
       {(selectedFile || audioUrl) && (
           <div className="p-2 md:p-3 bg-slate-100 dark:bg-slate-900 border-t border-slate-300 dark:border-slate-700 flex items-center gap-2 md:gap-4 sticky bottom-0 z-20">
               <button onClick={cancelAttachment} className="p-2 bg-red-100 text-red-500 rounded-full hover:bg-red-200 shrink-0"><X size={20} /></button>
@@ -370,7 +428,7 @@ const ChatTab = ({ user }) => {
           </div>
       )}
 
-      {/* --- INPUT AREA --- */}
+      {/* INPUT AREA */}
       {!selectedFile && !audioUrl && (
       <div className="p-3 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2 sticky bottom-0 z-20">
         <div className="relative attach-menu">
