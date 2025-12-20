@@ -204,7 +204,6 @@ const ChatTab = ({ user }) => {
   const renderMessageContent = (msg) => {
       const fullUrl = `${BASE_URL}${msg.fileUrl}`;
       
-      // 1. IMAGES (Click -> Open In-App Fullscreen)
       if(msg.fileType === 'image') {
           return (
               <div className="mt-1 group cursor-pointer" onClick={(e) => { e.stopPropagation(); setFullScreenMedia({ url: fullUrl, type: 'image' }); }}>
@@ -213,8 +212,6 @@ const ChatTab = ({ user }) => {
               </div>
           );
       }
-      
-      // 2. VIDEOS (Click -> Open In-App Fullscreen)
       if(msg.fileType === 'video') {
           return (
               <div className="mt-1 cursor-pointer" onClick={(e) => { e.stopPropagation(); setFullScreenMedia({ url: fullUrl, type: 'video' }); }}>
@@ -226,8 +223,6 @@ const ChatTab = ({ user }) => {
               </div>
           );
       }
-      
-      // 3. AUDIO (In-Place Player)
       if(msg.fileType === 'audio') {
           return (
               <div className="mt-1 flex items-center gap-2 min-w-[200px] bg-slate-100 dark:bg-slate-800 p-2 rounded-lg" onClick={e => e.stopPropagation()}>
@@ -236,30 +231,20 @@ const ChatTab = ({ user }) => {
               </div>
           );
       }
-      
-      // 4. FILES/DOCS (Click -> Open System Default App)
       if(msg.fileType === 'file') {
           return (
               <div 
                 className="mt-1 bg-slate-100 dark:bg-slate-800 p-3 rounded flex items-center gap-3 border border-slate-200 dark:border-slate-600 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    // This forces the browser to open the file in a new tab/window
-                    // which usually triggers the "Open with..." system dialog or PDF viewer
-                    window.open(fullUrl, '_blank');
-                }}
+                onClick={(e) => { e.stopPropagation(); window.open(fullUrl, '_blank'); }}
               >
-                  <FileText size={28} className="text-red-500" />
+                  <FileText size={28} className="text-red-500 shrink-0" />
                   <div className="overflow-hidden">
                       <p className="text-sm font-bold truncate max-w-[180px] text-slate-700 dark:text-slate-200">{msg.fileName}</p>
-                      <p className="text-[10px] text-slate-500 flex items-center gap-1">
-                          TAP TO OPEN <ExternalLink size={10} />
-                      </p>
+                      <p className="text-[10px] text-slate-500 flex items-center gap-1">TAP TO OPEN <ExternalLink size={10} /></p>
                   </div>
               </div>
           );
       }
-      
       return <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.message}</p>;
   };
 
@@ -353,24 +338,39 @@ const ChatTab = ({ user }) => {
         <div ref={bottomRef} />
       </div>
 
-      {/* PREVIEW BAR */}
+      {/* --- PREVIEW BAR (Mobile Optimized) --- */}
       {(selectedFile || audioUrl) && (
-          <div className="p-3 bg-slate-100 dark:bg-slate-900 border-t border-slate-300 dark:border-slate-700 flex items-center gap-4">
-              <button onClick={cancelAttachment} className="p-2 bg-red-100 text-red-500 rounded-full hover:bg-red-200"><X size={20} /></button>
+          <div className="p-2 md:p-3 bg-slate-100 dark:bg-slate-900 border-t border-slate-300 dark:border-slate-700 flex items-center gap-2 md:gap-4 sticky bottom-0 z-20">
+              <button onClick={cancelAttachment} className="p-2 bg-red-100 text-red-500 rounded-full hover:bg-red-200 shrink-0"><X size={20} /></button>
               
-              {selectedFile && selectedFile.type.startsWith('image') && <img src={previewUrl} alt="Preview" className="h-16 w-16 object-cover rounded-lg border border-slate-300" />}
-              {selectedFile && selectedFile.type.startsWith('video') && <Video className="text-indigo-500" />}
-              {selectedFile && !selectedFile.type.startsWith('image') && !selectedFile.type.startsWith('video') && <div className="flex items-center gap-2"><FileText /> <span className="text-xs truncate max-w-[150px]">{selectedFile.name}</span></div>}
+              <div className="flex-1 flex items-center gap-2 overflow-hidden">
+                  {selectedFile && selectedFile.type.startsWith('image') && <img src={previewUrl} alt="Preview" className="h-10 w-10 md:h-16 md:w-16 object-cover rounded-lg border border-slate-300 shrink-0" />}
+                  {selectedFile && selectedFile.type.startsWith('video') && <Video className="text-indigo-500 shrink-0" />}
+                  {selectedFile && !selectedFile.type.startsWith('image') && !selectedFile.type.startsWith('video') && (
+                      <div className="flex items-center gap-2 overflow-hidden">
+                          <FileText className="shrink-0" /> 
+                          <span className="text-xs truncate">{selectedFile.name}</span>
+                      </div>
+                  )}
+                  
+                  {audioUrl && <audio src={audioUrl} controls className="h-8 w-full min-w-[100px]" />}
+                  
+                  {selectedFile && (
+                      <input 
+                        type="text" 
+                        value={currentMessage} 
+                        onChange={(e) => setCurrentMessage(e.target.value)} 
+                        placeholder="Caption..." 
+                        className="flex-1 bg-transparent outline-none text-sm min-w-[50px]" 
+                      />
+                  )}
+              </div>
               
-              {audioUrl && <audio src={audioUrl} controls className="h-8 w-full" />}
-              
-              {selectedFile && <input type="text" value={currentMessage} onChange={(e) => setCurrentMessage(e.target.value)} placeholder="Add a caption..." className="flex-1 bg-transparent outline-none text-sm" />}
-              
-              <button onClick={sendMessage} className="p-3 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600"><Send size={20} /></button>
+              <button onClick={sendMessage} className="p-3 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 shrink-0"><Send size={20} /></button>
           </div>
       )}
 
-      {/* INPUT AREA */}
+      {/* --- INPUT AREA --- */}
       {!selectedFile && !audioUrl && (
       <div className="p-3 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2 sticky bottom-0 z-20">
         <div className="relative attach-menu">
@@ -387,7 +387,7 @@ const ChatTab = ({ user }) => {
         <input
           type="text"
           value={currentMessage}
-          placeholder={isRecording ? "Recording audio..." : "Type a message..."}
+          placeholder={isRecording ? "Recording..." : "Message..."}
           disabled={isRecording}
           className="flex-1 p-3 rounded-full bg-slate-100 dark:bg-slate-900 border-none focus:ring-2 focus:ring-indigo-500 transition outline-none dark:text-white"
           onKeyPress={(e) => e.key === "Enter" && sendMessage()}
@@ -395,14 +395,14 @@ const ChatTab = ({ user }) => {
         />
 
         {currentMessage.trim() ? (
-            <button onClick={sendMessage} className="p-3 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 shadow-lg transform active:scale-95"><Send size={20} /></button>
+            <button onClick={sendMessage} className="p-3 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 shadow-lg transform active:scale-95 shrink-0"><Send size={20} /></button>
         ) : (
             <button 
                 onMouseDown={startRecording} 
                 onMouseUp={stopRecording} 
                 onTouchStart={startRecording}
                 onTouchEnd={stopRecording}
-                className={`p-3 rounded-full text-white shadow-lg transition-all duration-200 ${isRecording ? 'bg-red-500 animate-pulse scale-110' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                className={`p-3 rounded-full text-white shadow-lg transition-all duration-200 shrink-0 ${isRecording ? 'bg-red-500 animate-pulse scale-110' : 'bg-indigo-600 hover:bg-indigo-700'}`}
             >
                 <Mic size={20} />
             </button>
