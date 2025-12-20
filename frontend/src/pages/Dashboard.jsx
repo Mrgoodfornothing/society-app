@@ -8,7 +8,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { toast } from 'react-toastify';
 import ChatTab from './ChatTab';
-import { MessageSquare } from 'lucide-react'; // Import Icon
+import { MessageSquare } from 'lucide-react'; 
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ const Dashboard = () => {
   
   // Desktop Sidebar State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  // Mobile Sidebar State (NEW)
+  // Mobile Sidebar State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   const [activeTab, setActiveTab] = useState('overview');
@@ -64,13 +64,18 @@ const Dashboard = () => {
     } catch (error) { console.error(error); }
   };
 
+  // --- FIXED PAYMENT HANDLER ---
   const handlePayment = async (billAmount, billId) => {
     try {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
-      const { data: order } = await axios.post('/api/payment/order', { amount: billAmount }, config);
+      
+      // 1. Create Order (UPDATED ROUTE to match your billRoutes)
+      // Was: /api/payment/order -> Now: /api/bills/create-order
+      const { data: order } = await axios.post('/api/bills/create-order', { amount: billAmount }, config);
 
+      // 2. Configure Options
       const options = {
-        key: "rzp_test_RqD258d3jIqnzq", // <--- PASTE YOUR KEY HERE
+        key: "rzp_test_RqD258d3jIqnzq", // Your Key
         amount: order.amount,
         currency: "INR",
         name: "Society Connect",
@@ -78,27 +83,37 @@ const Dashboard = () => {
         order_id: order.id,
         handler: async function (response) {
           try {
+            // 3. Verify Payment (UPDATED ROUTE)
+            // Was: /api/payment/verify -> Now: /api/bills/verify-payment
             const verifyData = {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
               billId: billId
             };
-            await axios.post('/api/payment/verify', verifyData, config);
+            await axios.post('/api/bills/verify-payment', verifyData, config);
+            
             toast.success("Payment Successful!");
-            fetchBills(user.token);
+            fetchBills(user.token); // Refresh bills to show 'Paid'
           } catch (error) {
+            console.error("Verification Error", error);
             toast.error("Payment Verification Failed");
           }
+        },
+        prefill: {
+            name: user.name,
+            email: user.email,
+            contact: user.phone
         },
         theme: { color: "#4F46E5" },
       };
 
+      // 4. Open Razorpay
       const rzp1 = new window.Razorpay(options);
       rzp1.open();
     } catch (error) {
-      console.error(error);
-      toast.error("Payment failed");
+      console.error("Payment Start Error:", error);
+      toast.error("Payment failed to start. Check console.");
     }
   };
 
@@ -129,10 +144,9 @@ const Dashboard = () => {
     { name: "Fire Brigade", phone: "101", icon: <Flame className="text-red-500" />, desc: "Emergency" },
   ];
 
-  // Helper to handle navigation click on mobile (close menu after click)
   const handleNavClick = (tabName) => {
     setActiveTab(tabName);
-    setIsMobileMenuOpen(false); // Close mobile menu when item is clicked
+    setIsMobileMenuOpen(false);
   };
 
   return (
@@ -162,18 +176,16 @@ const Dashboard = () => {
         </div>
       </motion.div>
 
-      {/* 2. MOBILE MENU OVERLAY (Visible only when isMobileMenuOpen is true) */}
+      {/* 2. MOBILE MENU OVERLAY */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <div className="fixed inset-0 z-50 flex md:hidden">
-            {/* Backdrop (Darkens background) */}
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setIsMobileMenuOpen(false)}
               className="fixed inset-0 bg-black/50 backdrop-blur-sm"
             ></motion.div>
             
-            {/* Slide-in Drawer */}
             <motion.div 
               initial={{ x: -300 }} animate={{ x: 0 }} exit={{ x: -300 }}
               className="relative w-64 h-full bg-white dark:bg-slate-800 shadow-2xl flex flex-col"
@@ -207,10 +219,8 @@ const Dashboard = () => {
 
       {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* HEADER */}
         <header className="h-16 glass flex items-center justify-between px-4 sm:px-6 sticky top-0 z-10">
           <div className="flex items-center">
-            {/* MOBILE MENU BUTTON (Visible only on mobile) */}
             <button 
               onClick={() => setIsMobileMenuOpen(true)} 
               className="md:hidden p-2 mr-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200"
@@ -265,10 +275,9 @@ const Dashboard = () => {
            {activeTab === 'chat' && (
               <div className="max-w-4xl mx-auto">
                 <ChatTab user={user} />
-                  </div>
-                    )}
+              </div>
+           )}
 
-           {/* TAB 3: NOTICES */}
            {activeTab === 'community' && <div><h3 className="text-xl sm:text-2xl font-bold mb-6 text-slate-800 dark:text-white">Community Notices</h3>
               <div className="max-w-3xl mx-auto space-y-6">
                {notices.map((notice) => (
@@ -283,7 +292,6 @@ const Dashboard = () => {
               </div>
            </div>}
 
-           {/* TAB 4: HELPDESK */}
            {activeTab === 'helpdesk' && (
              <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
                <div className="glass p-6 rounded-xl h-fit">
@@ -319,7 +327,6 @@ const Dashboard = () => {
              </div>
            )}
 
-           {/* TAB 5: DIRECTORY */}
            {activeTab === 'directory' && (
              <div>
                <h3 className="text-xl sm:text-2xl font-bold mb-6 text-slate-800 dark:text-white">Emergency Directory</h3>
@@ -350,8 +357,6 @@ const Dashboard = () => {
                </div>
              </div>
            )}
-
-
         </main>
       </div>
     </div>
