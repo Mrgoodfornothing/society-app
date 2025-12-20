@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminAnalytics from './AdminAnalytics';
-import ChatTab from './ChatTab'; // <--- NEW: Import Chat Component
+import ChatTab from '../components/ChatTab';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -32,6 +32,7 @@ const AdminDashboard = () => {
         navigate('/dashboard');
       }
       setUser(parsedUser);
+      // Fetch data immediately
       fetchResidents(parsedUser.token);
       fetchAllBills(parsedUser.token);
     }
@@ -39,11 +40,17 @@ const AdminDashboard = () => {
 
   const fetchResidents = async (token) => {
     try {
+      console.log("🔄 Fetching Residents...");
       const config = { headers: { Authorization: `Bearer ${token}` } };
+      
+      // Ensure we hit the correct endpoint
       const { data } = await axios.get('/api/users', config);
+      
+      console.log("✅ Residents Data Received:", data);
       setResidents(data);
     } catch (error) {
-      console.error(error);
+      console.error("❌ Error fetching residents:", error);
+      toast.error("Failed to load resident list.");
     }
   };
 
@@ -62,7 +69,6 @@ const AdminDashboard = () => {
     navigate('/');
   };
 
-  // Helper to close mobile menu on click
   const handleNavClick = (tab) => {
     setActiveTab(tab);
     setIsMobileMenuOpen(false);
@@ -82,9 +88,7 @@ const AdminDashboard = () => {
 
         <nav className="flex-1 px-4 space-y-2 mt-4">
           <SidebarItem icon={<LayoutDashboard size={20} />} label="Overview" active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
-          {/* <--- NEW: Added Chat Tab Here */}
           <SidebarItem icon={<MessageCircle size={20} />} label="Community Chat" active={activeTab === 'chat'} onClick={() => setActiveTab('chat')} />
-          
           <SidebarItem icon={<Users size={20} />} label="Residents" active={activeTab === 'residents'} onClick={() => setActiveTab('residents')} />
           <SidebarItem icon={<FileText size={20} />} label="Manage Bills" active={activeTab === 'bills'} onClick={() => setActiveTab('bills')} />
           <SidebarItem icon={<Bell size={20} />} label="Notices" active={activeTab === 'notices'} onClick={() => setActiveTab('notices')} />
@@ -120,9 +124,7 @@ const AdminDashboard = () => {
               
               <nav className="flex-1 px-4 space-y-2 mt-4">
                 <SidebarItem icon={<LayoutDashboard size={20} />} label="Overview" active={activeTab === 'overview'} onClick={() => handleNavClick('overview')} />
-                {/* <--- NEW: Added Chat Tab Here for Mobile */}
                 <SidebarItem icon={<MessageCircle size={20} />} label="Community Chat" active={activeTab === 'chat'} onClick={() => handleNavClick('chat')} />
-
                 <SidebarItem icon={<Users size={20} />} label="Residents" active={activeTab === 'residents'} onClick={() => handleNavClick('residents')} />
                 <SidebarItem icon={<FileText size={20} />} label="Manage Bills" active={activeTab === 'bills'} onClick={() => handleNavClick('bills')} />
                 <SidebarItem icon={<Bell size={20} />} label="Notices" active={activeTab === 'notices'} onClick={() => handleNavClick('notices')} />
@@ -144,7 +146,6 @@ const AdminDashboard = () => {
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-16 glass flex items-center justify-between px-4 sm:px-8 z-10 sticky top-0">
           <div className="flex items-center">
-            {/* MOBILE MENU BUTTON */}
             <button 
               onClick={() => setIsMobileMenuOpen(true)} 
               className="md:hidden p-2 mr-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200"
@@ -165,11 +166,9 @@ const AdminDashboard = () => {
            
            {activeTab === 'overview' && <AdminAnalytics residents={residents} bills={allBills} />}
            
-           {/* <--- NEW: Chat Tab Content */}
            {activeTab === 'chat' && (
              <div className="h-full">
                <h3 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">Live Discussion</h3>
-               {/* We pass the 'user' object so the ChatTab knows this is an Admin */}
                <ChatTab user={user} />
              </div>
            )}
@@ -193,29 +192,35 @@ const AdminDashboard = () => {
   );
 };
 
-// --- SUB COMPONENTS (UNCHANGED) ---
+// --- SUB COMPONENTS ---
 
 const ResidentsTab = ({ residents }) => (
   <div className="glass p-6 rounded-xl overflow-x-auto">
     <h3 className="font-bold mb-4 text-slate-700 dark:text-white">Resident List</h3>
-    <table className="w-full text-left min-w-[600px]">
-      <thead>
-        <tr className="text-slate-400 text-sm border-b border-slate-200 dark:border-slate-700">
-          <th className="pb-3">Name</th>
-          <th className="pb-3">Flat</th>
-          <th className="pb-3">Phone</th>
-        </tr>
-      </thead>
-      <tbody>
-        {residents.map((r) => (
-          <tr key={r._id} className="border-b border-slate-100 dark:border-slate-800">
-            <td className="py-3 text-slate-700 dark:text-slate-300">{r.name}</td>
-            <td className="py-3 text-slate-500">{r.flatNumber}</td>
-            <td className="py-3 text-slate-500">{r.phone}</td>
+    {residents.length === 0 ? (
+        <p className="text-slate-500 text-center py-4">No residents found.</p>
+    ) : (
+      <table className="w-full text-left min-w-[600px]">
+        <thead>
+          <tr className="text-slate-400 text-sm border-b border-slate-200 dark:border-slate-700">
+            <th className="pb-3">Name</th>
+            <th className="pb-3">Flat</th>
+            <th className="pb-3">Phone</th>
+            <th className="pb-3">Email</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {residents.map((r) => (
+            <tr key={r._id} className="border-b border-slate-100 dark:border-slate-800">
+              <td className="py-3 text-slate-700 dark:text-slate-300 font-medium">{r.name}</td>
+              <td className="py-3 text-slate-500">{r.flatNumber}</td>
+              <td className="py-3 text-slate-500">{r.phone}</td>
+              <td className="py-3 text-slate-500">{r.email}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
   </div>
 );
 
