@@ -200,7 +200,7 @@ const ChatTab = ({ user }) => {
     cancelAttachment();
   };
 
-  // --- DELETE HELPER ---
+  // --- ACTIONS ---
   const handleDelete = (id, type) => {
     socket.emit('delete_message', { 
       messageId: id, 
@@ -209,6 +209,12 @@ const ChatTab = ({ user }) => {
       isAdmin: isAdmin 
     });
     setSelectedMsgId(null);
+  };
+
+  const handleMute = (targetId) => {
+    if(window.confirm("Ban this user from chatting?")) {
+        socket.emit('admin_mute_user', { userId: targetId, isMuted: true });
+    }
   };
 
   // --- RENDER CONTENT ---
@@ -342,8 +348,6 @@ const ChatTab = ({ user }) => {
         {filteredMessages.map((msg, index) => {
           const isMe = msg.author === user.name;
           const isMsgAdmin = msg.role === 'admin';
-          
-          // --- RESTORED CHECK ---
           const isRecent = (Date.now() - new Date(msg.createdAt).getTime()) < (60 * 60 * 1000); 
 
           return (
@@ -352,7 +356,22 @@ const ChatTab = ({ user }) => {
                 onClick={(e) => { e.stopPropagation(); setSelectedMsgId(selectedMsgId === msg._id ? null : msg._id); }}
                 className={`max-w-[85%] md:max-w-[70%] p-3 rounded-2xl relative cursor-pointer transition transform active:scale-[0.98] ${isMe ? 'bg-indigo-600 text-white rounded-tr-none' : isMsgAdmin ? 'bg-red-50 border border-red-200 text-slate-800' : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white rounded-tl-none shadow-sm'}`}
               >
-                {!isMe && <p className="text-xs font-bold text-orange-500 mb-1">{msg.author}</p>}
+                {/* --- RESTORED BAN BUTTON HEADER --- */}
+                {!isMe && (
+                   <div className="flex justify-between items-start">
+                       <p className="text-xs font-bold text-orange-500 mb-1">{msg.author}</p>
+                       {/* ADMIN ONLY: Show Ban Button (if target is not also admin) */}
+                       {isAdmin && !isMsgAdmin && (
+                           <button 
+                             onClick={(e) => { e.stopPropagation(); handleMute(msg.authorId); }} 
+                             className="text-slate-300 hover:text-red-500 p-1 rounded"
+                             title="Ban this user"
+                           >
+                               <UserX size={12} />
+                           </button>
+                       )}
+                   </div>
+                )}
                 
                 {renderMessageContent(msg)}
 
@@ -362,26 +381,23 @@ const ChatTab = ({ user }) => {
                 </div>
               </div>
               
-              {/* MENU (RESTORED DELETE OPTIONS) */}
+              {/* MENU */}
               {selectedMsgId === msg._id && (
                   <div className={`absolute top-full mt-2 z-30 bg-white dark:bg-slate-800 shadow-2xl rounded-xl border border-slate-200 w-64 ${isMe ? 'right-0' : 'left-0'}`}>
                       <div className="flex justify-between p-2 bg-slate-50 dark:bg-slate-900/50">
                           {REACTION_EMOJIS.map(emoji => <button key={emoji} onClick={() => { socket.emit('add_reaction', { messageId: selectedMsgId, userId: user._id, userName: user.name, emoji }); setSelectedMsgId(null); }} className="hover:scale-125 px-1">{emoji}</button>)}
                       </div>
                       <div className="py-1">
-                          {/* 1. Delete For Me */}
                           <button onClick={() => handleDelete(msg._id, 'me')} className="w-full px-4 py-2 text-sm flex gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300">
                               <Trash2 size={16}/> Delete for Me
                           </button>
 
-                          {/* 2. Delete For Everyone (RESTORED) */}
                           {(isAdmin || (isMe && isRecent)) && (
                               <button onClick={() => handleDelete(msg._id, 'everyone')} className="w-full px-4 py-2 text-sm flex gap-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 border-t border-slate-100 dark:border-slate-700">
                                   <Shield size={16}/> Delete for Everyone
                               </button>
                           )}
                           
-                          {/* Info for User if expired */}
                           {isMe && !isRecent && !isAdmin && (
                               <div className="px-4 py-1 text-[10px] text-slate-400 italic text-center">
                                   "Everyone" delete expired (1hr)
@@ -396,7 +412,7 @@ const ChatTab = ({ user }) => {
         <div ref={bottomRef} />
       </div>
 
-      {/* PREVIEW BAR (Mobile Optimized) */}
+      {/* PREVIEW BAR */}
       {(selectedFile || audioUrl) && (
           <div className="p-2 md:p-3 bg-slate-100 dark:bg-slate-900 border-t border-slate-300 dark:border-slate-700 flex items-center gap-2 md:gap-4 sticky bottom-0 z-20">
               <button onClick={cancelAttachment} className="p-2 bg-red-100 text-red-500 rounded-full hover:bg-red-200 shrink-0"><X size={20} /></button>
