@@ -4,8 +4,8 @@ import EmojiPicker from 'emoji-picker-react';
 import axios from 'axios';
 import { 
   Send, Trash2, Shield, Clock, Lock, UserX, 
-  Maximize2, Minimize2, Plus, MoreHorizontal, 
-  Image as ImageIcon, FileText, Mic, X, Play, Pause, Video, Paperclip
+  Maximize2, Minimize2, Plus, 
+  Image as ImageIcon, FileText, Mic, X, Video, Download, ExternalLink
 } from 'lucide-react';
 
 // Automatically switches to Production URL when deployed
@@ -29,18 +29,21 @@ const ChatTab = ({ user }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   
-  // Media & Recording
-  const [selectedFile, setSelectedFile] = useState(null); // For Image/Video/Doc preview
+  // Media
+  const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  
+  // Audio Recording
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
-  const [recordingDuration, setRecordingDuration] = useState(0);
   
+  // Full Screen Viewer
+  const [fullScreenMedia, setFullScreenMedia] = useState(null);
+
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
-  const timerRef = useRef(null);
 
   const ROOM = "society_general";
   const isAdmin = user && (user.role === 'admin' || user.name === 'Admin');
@@ -98,7 +101,6 @@ const ChatTab = ({ user }) => {
   const handleFileSelect = (e) => {
       const file = e.target.files[0];
       if(!file) return;
-      
       setSelectedFile(file);
       setPreviewUrl(URL.createObjectURL(file));
       setShowAttachMenu(false);
@@ -120,22 +122,17 @@ const ChatTab = ({ user }) => {
           mediaRecorderRef.current = mediaRecorder;
           const chunks = [];
 
-          mediaRecorder.ondataavailable = (e) => {
-              if (e.data.size > 0) chunks.push(e.data);
-          };
+          mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
           mediaRecorder.onstop = () => {
               const blob = new Blob(chunks, { type: 'audio/webm' });
               setAudioBlob(blob);
               setAudioUrl(URL.createObjectURL(blob));
               setIsRecording(false);
-              clearInterval(timerRef.current);
           };
 
           mediaRecorder.start();
           setIsRecording(true);
-          setRecordingDuration(0);
-          timerRef.current = setInterval(() => setRecordingDuration(prev => prev + 1), 1000);
       } catch (err) {
           alert("Microphone access denied!");
       }
@@ -164,7 +161,6 @@ const ChatTab = ({ user }) => {
     let uploadedFileType = "text";
     let uploadedFileName = "";
 
-    // Upload File or Audio if exists
     if (selectedFile || audioBlob) {
         const formData = new FormData();
         if (selectedFile) {
@@ -179,10 +175,9 @@ const ChatTab = ({ user }) => {
             const { data } = await axios.post(`${BASE_URL}/api/upload`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            uploadedFileUrl = data.fileUrl; // This will be /uploads/filename.ext
+            uploadedFileUrl = data.fileUrl;
             uploadedFileName = data.fileName;
         } catch (error) {
-            console.error("Upload failed", error);
             alert("Upload failed");
             return;
         }
@@ -193,7 +188,7 @@ const ChatTab = ({ user }) => {
       author: user.name,
       authorId: user._id,
       role: user.role,
-      message: currentMessage, // Can be caption or empty
+      message: currentMessage,
       fileUrl: uploadedFileUrl,
       fileType: uploadedFileType,
       fileName: uploadedFileName,
@@ -201,51 +196,70 @@ const ChatTab = ({ user }) => {
     };
 
     await socket.emit("send_message", messageData);
-    
-    // Reset Everything
     setCurrentMessage("");
     cancelAttachment();
   };
 
-  // --- RENDERING MESSAGE CONTENT ---
+  // --- RENDER CONTENT ---
   const renderMessageContent = (msg) => {
+      const fullUrl = `${BASE_URL}${msg.fileUrl}`;
+      
+      // 1. IMAGES (Click -> Open In-App Fullscreen)
       if(msg.fileType === 'image') {
           return (
-              <div className="mt-1">
-                  <img src={`${BASE_URL}${msg.fileUrl}`} alt="attachment" className="rounded-lg max-h-60 max-w-full object-cover" />
+              <div className="mt-1 group cursor-pointer" onClick={(e) => { e.stopPropagation(); setFullScreenMedia({ url: fullUrl, type: 'image' }); }}>
+                  <img src={fullUrl} alt="attachment" className="rounded-lg max-h-60 max-w-full object-cover border border-slate-200 dark:border-slate-600" />
                   {msg.message && <p className="mt-2 text-sm">{msg.message}</p>}
               </div>
           );
       }
+      
+      // 2. VIDEOS (Click -> Open In-App Fullscreen)
       if(msg.fileType === 'video') {
           return (
-              <div className="mt-1">
-                  <video src={`${BASE_URL}${msg.fileUrl}`} controls className="rounded-lg max-h-60 max-w-full" />
+              <div className="mt-1 cursor-pointer" onClick={(e) => { e.stopPropagation(); setFullScreenMedia({ url: fullUrl, type: 'video' }); }}>
+                  <div className="relative">
+                     <video src={fullUrl} className="rounded-lg max-h-60 max-w-full bg-black" />
+                     <div className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/10 transition"><span className="p-2 bg-white/20 rounded-full backdrop-blur"><Video className="text-white"/></span></div>
+                  </div>
                   {msg.message && <p className="mt-2 text-sm">{msg.message}</p>}
               </div>
           );
       }
+      
+      // 3. AUDIO (In-Place Player)
       if(msg.fileType === 'audio') {
           return (
-              <div className="mt-1 flex items-center gap-2 min-w-[200px]">
-                  <div className="p-2 bg-indigo-100 dark:bg-slate-600 rounded-full text-indigo-600 dark:text-white">
-                      <Mic size={16} />
-                  </div>
-                  <audio src={`${BASE_URL}${msg.fileUrl}`} controls className="h-8 w-48" />
+              <div className="mt-1 flex items-center gap-2 min-w-[200px] bg-slate-100 dark:bg-slate-800 p-2 rounded-lg" onClick={e => e.stopPropagation()}>
+                  <div className="p-2 bg-indigo-500 rounded-full text-white"><Mic size={16} /></div>
+                  <audio controls className="h-8 w-48 custom-audio"><source src={fullUrl} type="audio/webm" /></audio>
               </div>
           );
       }
+      
+      // 4. FILES/DOCS (Click -> Open System Default App)
       if(msg.fileType === 'file') {
           return (
-              <div className="mt-1 bg-slate-100 dark:bg-slate-800 p-2 rounded flex items-center gap-3">
-                  <FileText size={24} className="text-red-500" />
+              <div 
+                className="mt-1 bg-slate-100 dark:bg-slate-800 p-3 rounded flex items-center gap-3 border border-slate-200 dark:border-slate-600 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    // This forces the browser to open the file in a new tab/window
+                    // which usually triggers the "Open with..." system dialog or PDF viewer
+                    window.open(fullUrl, '_blank');
+                }}
+              >
+                  <FileText size={28} className="text-red-500" />
                   <div className="overflow-hidden">
-                      <p className="text-xs font-bold truncate">{msg.fileName}</p>
-                      <a href={`${BASE_URL}${msg.fileUrl}`} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 underline">Download</a>
+                      <p className="text-sm font-bold truncate max-w-[180px] text-slate-700 dark:text-slate-200">{msg.fileName}</p>
+                      <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                          TAP TO OPEN <ExternalLink size={10} />
+                      </p>
                   </div>
               </div>
           );
       }
+      
       return <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.message}</p>;
   };
 
@@ -256,9 +270,24 @@ const ChatTab = ({ user }) => {
   });
 
   return (
+    <>
+    {/* FULL SCREEN MEDIA OVERLAY */}
+    {fullScreenMedia && (
+        <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn" onClick={() => setFullScreenMedia(null)}>
+            <button className="absolute top-4 right-4 text-white p-2 bg-white/10 rounded-full hover:bg-white/20"><X size={24}/></button>
+            <div className="max-w-full max-h-full" onClick={e => e.stopPropagation()}>
+                {fullScreenMedia.type === 'image' ? (
+                    <img src={fullScreenMedia.url} className="max-w-full max-h-[90vh] object-contain rounded-md shadow-2xl" alt="Full view" />
+                ) : (
+                    <video src={fullScreenMedia.url} controls autoPlay className="max-w-full max-h-[90vh] rounded-md shadow-2xl" />
+                )}
+            </div>
+        </div>
+    )}
+
     <div className={`flex flex-col glass rounded-xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-700 transition-all duration-300 ${isFullScreen ? 'fixed inset-0 z-50 rounded-none h-[100dvh] w-screen' : 'h-[85vh] md:h-[600px] relative'}`}>
       
-      {/* --- HEADER (UNCHANGED) --- */}
+      {/* HEADER */}
       <div className="bg-indigo-600 p-3 text-white shadow-md z-10 flex flex-wrap justify-between items-center gap-2">
         <div className="flex items-center gap-3">
           {isFullScreen && <button onClick={() => setIsFullScreen(false)} className="hover:bg-indigo-500 p-1 rounded"><Minimize2 size={20}/></button>}
@@ -286,7 +315,7 @@ const ChatTab = ({ user }) => {
         </div>
       </div>
 
-      {/* --- MESSAGES AREA --- */}
+      {/* MESSAGES AREA */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-900/50" onClick={(e) => { e.stopPropagation(); setSelectedMsgId(null); setShowEmojiPicker(false); setShowAttachMenu(false); }}>
         {filteredMessages.map((msg, index) => {
           const isMe = msg.author === user.name;
@@ -307,7 +336,7 @@ const ChatTab = ({ user }) => {
                 </div>
               </div>
               
-              {/* DELETE/REACT MENU */}
+              {/* MENU */}
               {selectedMsgId === msg._id && (
                   <div className={`absolute top-full mt-2 z-30 bg-white dark:bg-slate-800 shadow-2xl rounded-xl border border-slate-200 w-64 ${isMe ? 'right-0' : 'left-0'}`}>
                       <div className="flex justify-between p-2 bg-slate-50 dark:bg-slate-900/50">
@@ -324,7 +353,7 @@ const ChatTab = ({ user }) => {
         <div ref={bottomRef} />
       </div>
 
-      {/* --- PREVIEW BAR (Shows when Image/Audio selected) --- */}
+      {/* PREVIEW BAR */}
       {(selectedFile || audioUrl) && (
           <div className="p-3 bg-slate-100 dark:bg-slate-900 border-t border-slate-300 dark:border-slate-700 flex items-center gap-4">
               <button onClick={cancelAttachment} className="p-2 bg-red-100 text-red-500 rounded-full hover:bg-red-200"><X size={20} /></button>
@@ -341,15 +370,11 @@ const ChatTab = ({ user }) => {
           </div>
       )}
 
-      {/* --- INPUT AREA (Hidden if previewing) --- */}
+      {/* INPUT AREA */}
       {!selectedFile && !audioUrl && (
       <div className="p-3 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2 sticky bottom-0 z-20">
-        
-        {/* + Button & Menu */}
         <div className="relative attach-menu">
-            <button onClick={() => setShowAttachMenu(!showAttachMenu)} className={`p-2 rounded-full transition ${showAttachMenu ? 'bg-slate-200 rotate-45' : 'hover:bg-slate-100 text-slate-500'}`}>
-                <Plus size={24} />
-            </button>
+            <button onClick={() => setShowAttachMenu(!showAttachMenu)} className={`p-2 rounded-full transition ${showAttachMenu ? 'bg-slate-200 rotate-45' : 'hover:bg-slate-100 text-slate-500'}`}><Plus size={24} /></button>
             {showAttachMenu && (
                 <div className="absolute bottom-12 left-0 bg-white dark:bg-slate-800 shadow-xl rounded-xl border border-slate-200 dark:border-slate-700 p-2 flex flex-col gap-2 w-40 animate-slideUp">
                     <button onClick={() => triggerFileInput('image')} className="flex items-center gap-3 p-2 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded text-sm text-indigo-600 font-bold"><ImageIcon size={18}/> Photos & Videos</button>
@@ -369,7 +394,6 @@ const ChatTab = ({ user }) => {
           onChange={(event) => setCurrentMessage(event.target.value)}
         />
 
-        {/* Send OR Mic Button */}
         {currentMessage.trim() ? (
             <button onClick={sendMessage} className="p-3 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 shadow-lg transform active:scale-95"><Send size={20} /></button>
         ) : (
@@ -386,6 +410,7 @@ const ChatTab = ({ user }) => {
       </div>
       )}
     </div>
+    </>
   );
 };
 
