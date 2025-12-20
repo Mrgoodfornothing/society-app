@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react'; // <--- FIXED: 'import' was misspelled
 import io from 'socket.io-client';
-import EmojiPicker from 'emoji-picker-react'; // <--- Import Picker
+import EmojiPicker from 'emoji-picker-react'; 
 import { 
   Send, Trash2, Shield, Clock, Lock, UserX, 
   Maximize2, Minimize2, Plus 
@@ -9,7 +9,7 @@ import {
 // Automatically switches to Production URL when deployed
 const BASE_URL = window.location.hostname === "localhost" 
   ? "http://localhost:5001" 
-  : "https://society-app-backend.onrender.com"; // <--- YOU WILL UPDATE THIS LATER
+  : "https://society-app-backend.onrender.com"; // <--- MAKE SURE THIS MATCHES YOUR RENDER URL
 
 const socket = io(BASE_URL);
 
@@ -26,7 +26,7 @@ const ChatTab = ({ user }) => {
   
   // UI Interaction
   const [selectedMsgId, setSelectedMsgId] = useState(null); 
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false); // <--- New State
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const bottomRef = useRef(null);
 
   const ROOM = "society_general";
@@ -40,7 +40,7 @@ const ChatTab = ({ user }) => {
 
     const fetchHistory = async () => {
       try {
-        const response = await fetch(`http://localhost:5001/api/messages/${ROOM}/${user._id}`);
+        const response = await fetch(`${BASE_URL}/api/messages/${ROOM}/${user._id}`);
         const data = await response.json();
         setMessageList(data.messages || []);
         setSettings(data.settings || {});
@@ -64,7 +64,6 @@ const ChatTab = ({ user }) => {
     socket.on("error_message", (msg) => alert(msg));
 
     const handleClickOutside = (e) => {
-        // Don't close if clicking inside picker
         if(e.target.closest('.emoji-picker-wrapper')) return;
         setSelectedMsgId(null);
         setShowEmojiPicker(false);
@@ -111,9 +110,7 @@ const ChatTab = ({ user }) => {
   };
 
   const handleReaction = (emojiObject) => {
-    // Handle both direct emoji string OR picker object
     const emoji = emojiObject.emoji ? emojiObject.emoji : emojiObject;
-
     socket.emit('add_reaction', {
       messageId: selectedMsgId,
       userId: user._id,
@@ -139,7 +136,10 @@ const ChatTab = ({ user }) => {
   return (
     <div className={`
       flex flex-col glass rounded-xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-700 transition-all duration-300
-      ${isFullScreen ? 'fixed inset-0 z-50 rounded-none h-screen w-screen' : 'h-[600px] relative'}
+      ${isFullScreen 
+        ? 'fixed inset-0 z-50 rounded-none h-[100dvh] w-screen' 
+        : 'h-[85vh] md:h-[600px] relative'
+      }
     `}>
       
       {/* HEADER */}
@@ -282,7 +282,6 @@ const ChatTab = ({ user }) => {
                                   {emoji}
                               </button>
                           ))}
-                          {/* Plus Button for More Emojis */}
                           <button 
                             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                             className="bg-slate-200 dark:bg-slate-700 rounded-full p-1 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300"
@@ -291,7 +290,7 @@ const ChatTab = ({ user }) => {
                           </button>
                       </div>
 
-                      {/* 2. Full Emoji Picker (Shows only when + is clicked) */}
+                      {/* 2. Full Emoji Picker */}
                       {showEmojiPicker && (
                           <div className="absolute top-12 left-0 z-40 emoji-picker-wrapper">
                               <EmojiPicker 
@@ -303,7 +302,7 @@ const ChatTab = ({ user }) => {
                           </div>
                       )}
 
-                      {/* 3. Actions (Hidden if picker is open to save space) */}
+                      {/* 3. Actions */}
                       {!showEmojiPicker && (
                           <div className="py-1">
                               <button 
@@ -332,7 +331,7 @@ const ChatTab = ({ user }) => {
       </div>
 
       {/* INPUT AREA */}
-      <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2">
+      <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2 sticky bottom-0 z-20">
         <input
           type="text"
           value={currentMessage}
@@ -350,6 +349,9 @@ const ChatTab = ({ user }) => {
           <Send size={20} />
         </button>
       </div>
+
+      {/* Resize Handle Indicator - Visible only on Desktop */}
+      <div className="hidden md:block absolute bottom-0 right-0 w-4 h-4 cursor-se-resize opacity-50 bg-indigo-500 rounded-tl"></div>
     </div>
   );
 };
