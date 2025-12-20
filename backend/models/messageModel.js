@@ -6,15 +6,17 @@ const messageSchema = mongoose.Schema(
     author: { type: String, required: true },
     authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     role: { type: String, default: 'resident' },
-    message: { type: String, required: true },
+    message: { type: String }, // Not required anymore (can be just a file)
     time: { type: String, required: true },
-    type: { type: String, default: 'text' }, 
     
-    hiddenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // For "Delete for Me"
-    
-    expiresAt: { type: Date, default: null }, // For "Global Disappearing"
+    // NEW FIELDS FOR MEDIA
+    fileUrl: { type: String, default: "" },
+    fileType: { type: String, default: "text" }, // 'text', 'image', 'video', 'audio', 'file'
+    fileName: { type: String, default: "" },
 
-    // NEW: Reactions Feature
+    // Existing features
+    hiddenBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    expiresAt: { type: Date, default: null },
     reactions: [
       {
         userId: { type: mongoose.Schema.Types.ObjectId },
@@ -27,5 +29,4 @@ const messageSchema = mongoose.Schema(
 );
 
 messageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
 module.exports = mongoose.model('Message', messageSchema);

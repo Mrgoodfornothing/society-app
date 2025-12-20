@@ -1,6 +1,9 @@
 const express = require('express');
 const dotenv = require('dotenv').config();
 const cors = require('cors');
+const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
 const connectDB = require('./config/db');
 const { errorHandler } = require('./middleware/errorMiddleware');
 const http = require('http');
@@ -28,6 +31,41 @@ let chatSettings = {
   globalDisappearingTime: 0, // 0 = off, value in seconds
 };
 // ----------------------------------------
+
+// --- FILE UPLOAD SETUP ---
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+}
+
+// Configure Storage
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+        // Unique filename: fieldname-timestamp.ext
+        cb(null, `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`);
+    }
+});
+
+const upload = multer({ storage });
+
+// Serve Uploads Folder Statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Upload Route
+app.post('/api/upload', upload.single('file'), (req, res) => {
+    if (!req.file) return res.status(400).send('No file uploaded');
+    
+    // Return the URL to the frontend
+    // NOTE: In production (Render), files in 'uploads' might disappear on redeploy.
+    // For a real prod app, use Cloudinary/S3. For this demo, local storage is fine.
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.json({ fileUrl, fileName: req.file.originalname, type: req.file.mimetype });
+});
+// -------------------------
 
 // Route to get Messages (Filtered for "Delete for Me")
 app.get('/api/messages/:room/:userId', async (req, res) => {
