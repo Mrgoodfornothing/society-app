@@ -80,6 +80,9 @@ const ChatTab = ({ user }) => {
     socket.on("message_updated", (updatedMsg) => setMessageList((list) => list.map(msg => msg._id === updatedMsg._id ? updatedMsg : msg)));
     socket.on("message_deleted", ({ id }) => setMessageList((list) => list.filter((msg) => msg._id !== id)));
     socket.on("settings_update", (newSettings) => setSettings(newSettings));
+    
+    // NEW: Listen for Ban/Unban alerts
+    socket.on("system_notification", (msg) => alert(msg));
   };
 
   const cleanupSocketListeners = () => {
@@ -87,6 +90,7 @@ const ChatTab = ({ user }) => {
     socket.off("message_updated");
     socket.off("message_deleted");
     socket.off("settings_update");
+    socket.off("system_notification");
   };
 
   const handleClickOutside = (e) => {
@@ -211,9 +215,11 @@ const ChatTab = ({ user }) => {
     setSelectedMsgId(null);
   };
 
-  const handleMute = (targetId) => {
-    if(window.confirm("Ban this user from chatting?")) {
-        socket.emit('admin_mute_user', { userId: targetId, isMuted: true });
+  // UPDATED BAN FUNCTION
+  const handleMute = (targetId, targetName) => {
+    if(window.confirm(`Are you sure you want to BAN/UNBAN ${targetName}?`)) {
+        // Just send the ID, server toggles the state
+        socket.emit('admin_mute_user', { userId: targetId });
     }
   };
 
@@ -363,9 +369,12 @@ const ChatTab = ({ user }) => {
                        {/* ADMIN ONLY: Show Ban Button (if target is not also admin) */}
                        {isAdmin && !isMsgAdmin && (
                            <button 
-                             onClick={(e) => { e.stopPropagation(); handleMute(msg.authorId); }} 
+                             onClick={(e) => { 
+                               e.stopPropagation(); 
+                               handleMute(msg.authorId, msg.author); 
+                             }} 
                              className="text-slate-300 hover:text-red-500 p-1 rounded"
-                             title="Ban this user"
+                             title="Ban/Unban this user"
                            >
                                <UserX size={12} />
                            </button>

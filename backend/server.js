@@ -16,12 +16,19 @@ const port = process.env.PORT || 5001;
 connectDB();
 const app = express();
 
-//app.use(cors());
-// Update CORS to allow your future frontend URL
+// --- CORS CONFIGURATION ---
+// Update CORS to allow your frontend URLs (Local + Vercel)
+// IMPORTANT: Do NOT add a trailing slash '/' at the end of URLs
+const allowedOrigins = [
+  "http://localhost:5173", 
+  "https://society-app-dusky.vercel.app" 
+];
+
 app.use(cors({
-  origin: ["http://localhost:5173", "https://society-app-dusky.vercel.app"],
+  origin: allowedOrigins,
   credentials: true
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -39,14 +46,17 @@ if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
 }
 
-// Configure Storage
+// Configure Storage (Smart Extension Handling)
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, 'uploads/');
     },
     filename: (req, file, cb) => {
-        // Unique filename: fieldname-timestamp.ext
-        cb(null, `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`);
+        // Fix: Ensure we preserve the valid extension
+        // This is critical for Audio/Video playback
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname) || '.webm'; // Default to webm if blob is unnamed
+        cb(null, file.fieldname + '-' + uniqueSuffix + ext);
     }
 });
 
@@ -60,8 +70,7 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     if (!req.file) return res.status(400).send('No file uploaded');
     
     // Return the URL to the frontend
-    // NOTE: In production (Render), files in 'uploads' might disappear on redeploy.
-    // For a real prod app, use Cloudinary/S3. For this demo, local storage is fine.
+    // NOTE: In production (Render Free Tier), files in 'uploads' might disappear on sleep.
     const fileUrl = `/uploads/${req.file.filename}`;
     res.json({ fileUrl, fileName: req.file.originalname, type: req.file.mimetype });
 });
@@ -84,21 +93,25 @@ app.get('/api/messages/:room/:userId', async (req, res) => {
 
 // Existing Routes...
 app.use('/api/users', require('./routes/userRoutes'));
-// ... (Your other routes: bills, notices, etc.) ...
+app.use('/api/bills', require('./routes/billRoutes')); // Ensure you have this
+app.use('/api/notices', require('./routes/noticeRoutes')); // Ensure you have this
+app.use('/api/complaints', require('./routes/complaintRoutes')); // Ensure you have this
+
 app.use(errorHandler);
 
 const server = http.createServer(app);
-// Update Socket.io CORS too
+
+// --- SOCKET.IO CONFIGURATION ---
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "https://society-app-dusky.vercel.app"],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   },
 });
 
 io.on('connection', (socket) => {
-  console.log(`✅ User: ${socket.id}`);
+  console.log(`✅ User Connected: ${socket.id}`);
 
   socket.on('join_room', (room) => {
     socket.join(room);
@@ -106,15 +119,13 @@ io.on('connection', (socket) => {
     socket.emit('settings_update', chatSettings);
   });
 
-  // ... inside io.on ...
-
-  // NEW: Reaction Handler
+  // --- REACTION LOGIC ---
   socket.on('add_reaction', async ({ messageId, userId, userName, emoji }) => {
     try {
       const msg = await Message.findById(messageId);
       if (!msg) return;
 
-      // Check if user already reacted with this emoji, if so, remove it (toggle)
+      // Check if user already reacted with this emoji (Toggle)
       const existingIndex = msg.reactions.findIndex(
         (r) => r.userId.toString() === userId && r.emoji === emoji
       );
@@ -122,9 +133,7 @@ io.on('connection', (socket) => {
       if (existingIndex > -1) {
         msg.reactions.splice(existingIndex, 1); // Remove
       } else {
-        // Remove previous reaction from this user to avoid spam? 
-        // Or allow multiple? Let's allow 1 reaction per user for simplicity, 
-        // or just push to allow multiple. Let's allow 1 per user for now (WhatsApp style replacement).
+        // Optional: Replace previous reaction from this user so they only have 1
         const userReactionIndex = msg.reactions.findIndex(r => r.userId.toString() === userId);
         if(userReactionIndex > -1) {
             msg.reactions[userReactionIndex].emoji = emoji; // Update existing
@@ -134,14 +143,11 @@ io.on('connection', (socket) => {
       }
 
       await msg.save();
-      // Send the WHOLE updated message back to replace the old one
       io.emit('message_updated', msg); 
     } catch (error) {
       console.log("Reaction Error:", error);
     }
   });
-
-  // ... (keep delete_message and send_message logic same as before) ...
 
   // --- SEND MESSAGE LOGIC ---
   socket.on('send_message', async (data) => {
@@ -153,6 +159,7 @@ io.on('connection', (socket) => {
     }
 
     // RULE 2: Check if User is Muted
+    // We check the DB every time to ensure Ban is instant
     const user = await User.findById(authorId);
     if (user && user.isMuted) {
       return socket.emit('error_message', "You have been muted by an Admin.");
@@ -160,12 +167,9 @@ io.on('connection', (socket) => {
 
     // RULE 3: Disappearing Messages
     let expiresAt = null;
-    // If Global setting is ON
     if (chatSettings.globalDisappearingTime > 0) {
       expiresAt = new Date(Date.now() + chatSettings.globalDisappearingTime * 1000);
-    } 
-    // If Local User setting is ON (passed in data.localTimeout)
-    else if (data.localTimeout > 0) {
+    } else if (data.localTimeout > 0) {
       expiresAt = new Date(Date.now() + data.localTimeout * 1000);
     }
 
@@ -176,14 +180,13 @@ io.on('connection', (socket) => {
       });
       const savedMsg = await newMessage.save();
       
-      // Send back to everyone
       io.to(room).emit('receive_message', savedMsg);
     } catch (err) {
       console.log("Save Error:", err);
     }
   });
 
-  // --- DELETE LOGIC (WITH 1-HOUR RULE) ---
+  // --- DELETE LOGIC ---
   socket.on('delete_message', async ({ messageId, userId, type, isAdmin }) => {
     try {
       const msg = await Message.findById(messageId);
@@ -191,27 +194,24 @@ io.on('connection', (socket) => {
 
       if (type === 'everyone') {
         // "Delete for Everyone"
-        
-        // 1. Check Ownership
         const isOwner = msg.authorId && (msg.authorId.toString() === userId);
         
-        // 2. Check Time Limit (1 Hour)
+        // 1 Hour Limit Check
         const msgTime = new Date(msg.createdAt).getTime();
         const timeDiff = Date.now() - msgTime;
         const ONE_HOUR = 60 * 60 * 1000; 
         const isRecent = timeDiff < ONE_HOUR;
 
-        // ALLOW IF: (Admin) OR (Owner AND Recent)
+        // Admin can delete ANYTHING. Users can delete OWN RECENT messages.
         if (isAdmin || (isOwner && isRecent)) {
           await Message.findByIdAndDelete(messageId);
           io.emit('message_deleted', { id: messageId, type: 'everyone' });
         } else {
-            // Send error back to user
             socket.emit('error_message', "You can only delete messages for everyone within 1 hour.");
         }
 
       } else if (type === 'me') {
-        // "Delete for Me" (Always allowed)
+        // "Delete for Me"
         if (!msg.hiddenBy.includes(userId)) {
           msg.hiddenBy.push(userId);
           await msg.save();
@@ -222,13 +222,12 @@ io.on('connection', (socket) => {
       console.log("Delete Error:", error);
     }
   });
-  // --- ADMIN COMMANDS ---
+
+  // --- ADMIN SETTINGS ---
   socket.on('admin_update_settings', (newSettings) => {
-    // Only allow if actually admin (you should verify token ideally, but trust flag for now)
     chatSettings = { ...chatSettings, ...newSettings };
     io.emit('settings_update', chatSettings);
     
-    // Notify everyone
     if (newSettings.adminsOnly) {
       io.emit('system_notification', "🔒 Chat has been locked to Admins Only.");
     } else {
@@ -236,11 +235,32 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('admin_mute_user', async ({ userId, isMuted }) => {
-    await User.findByIdAndUpdate(userId, { isMuted: isMuted });
-    // Notify the specific user instantly
-    // (In production, use a map of userId -> socketId to target them specifically)
-    io.emit('system_notification', isMuted ? "A user was muted." : "A user was unmuted.");
+  // --- ADMIN BAN/UNBAN (TOGGLE) ---
+  socket.on('admin_mute_user', async ({ userId }) => {
+    try {
+      console.log(`🔒 Admin is trying to ban/unban User ID: ${userId}`);
+      
+      const userToUpdate = await User.findById(userId);
+      
+      if (!userToUpdate) {
+        console.log("❌ User not found!");
+        return;
+      }
+
+      // TOGGLE STATUS: If true -> make false. If false -> make true.
+      const newStatus = !userToUpdate.isMuted;
+      
+      userToUpdate.isMuted = newStatus;
+      await userToUpdate.save();
+
+      console.log(`✅ Success! User ${userToUpdate.name} isMuted set to: ${newStatus}`);
+
+      // Notify everyone (or just admin)
+      socket.emit('system_notification', `User ${userToUpdate.name} has been ${newStatus ? 'MUTED 🔴' : 'UNMUTED 🟢'}.`);
+
+    } catch (error) {
+      console.log("❌ Ban Error:", error);
+    }
   });
 });
 
