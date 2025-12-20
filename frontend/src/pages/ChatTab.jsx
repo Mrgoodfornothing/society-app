@@ -1,9 +1,9 @@
-import { useEffect, useState, useRef } from 'react'; // <--- FIXED: 'import' was misspelled
+import { useEffect, useState, useRef } from 'react';
 import io from 'socket.io-client';
 import EmojiPicker from 'emoji-picker-react'; 
 import { 
   Send, Trash2, Shield, Clock, Lock, UserX, 
-  Maximize2, Minimize2, Plus 
+  Maximize2, Minimize2, Plus, MoreHorizontal 
 } from 'lucide-react';
 
 // Automatically switches to Production URL when deployed
@@ -143,18 +143,18 @@ const ChatTab = ({ user }) => {
     `}>
       
       {/* HEADER */}
-      <div className="bg-indigo-600 p-3 text-white shadow-md z-10 flex justify-between items-center">
+      <div className="bg-indigo-600 p-3 text-white shadow-md z-10 flex flex-wrap justify-between items-center gap-2">
         <div className="flex items-center gap-3">
           {isFullScreen && (
               <button onClick={() => setIsFullScreen(false)} className="hover:bg-indigo-500 p-1 rounded"><Minimize2 size={20}/></button>
           )}
           <div>
-            <h3 className="font-bold flex items-center gap-2">
+            <h3 className="font-bold flex items-center gap-2 text-sm md:text-base">
                Society Chat
                {settings.adminsOnly && <Lock size={14} className="text-yellow-300" />}
                {settings.globalDisappearingTime > 0 && <Clock size={14} className="text-red-300" />}
             </h3>
-            <p className="text-[10px] text-indigo-200">
+            <p className="text-[10px] text-indigo-200 hidden md:block">
                {settings.adminsOnly ? "Admins Only" : "Public"} 
                {settings.globalDisappearingTime > 0 && ` • Global Auto-Delete: ${settings.globalDisappearingTime}s`}
             </p>
@@ -162,18 +162,19 @@ const ChatTab = ({ user }) => {
         </div>
 
         <div className="flex items-center gap-2">
-            <div className="hidden md:flex items-center gap-1 text-xs bg-indigo-700/50 p-1 rounded">
+            {/* --- UPDATED: THIS IS NOW VISIBLE ON MOBILE --- */}
+            <div className="flex items-center gap-1 text-xs bg-indigo-700/50 p-1 rounded">
                 <Clock size={12} className="text-indigo-200" />
-                <span className="text-indigo-200">Keep History:</span>
+                <span className="text-indigo-200 hidden sm:inline">History:</span>
                 <select 
-                    className="bg-transparent font-bold outline-none cursor-pointer"
+                    className="bg-transparent font-bold outline-none cursor-pointer text-xs max-w-[80px] sm:max-w-none"
                     value={localClearTime}
                     onChange={(e) => setLocalClearTime(Number(e.target.value))}
                 >
                     <option value="0">Forever</option>
-                    <option value="600">10 Mins</option>
-                    <option value="3600">1 Hour</option>
-                    <option value="86400">24 Hours</option>
+                    <option value="600">10m</option>
+                    <option value="3600">1h</option>
+                    <option value="86400">24h</option>
                 </select>
             </div>
 
