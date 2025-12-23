@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminAnalytics from './AdminAnalytics';
-import ChatTab from '../components/ChatTab';
+import ChatTab from './ChatTab';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';

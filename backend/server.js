@@ -10,8 +10,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const Message = require('./models/messageModel');
 const User = require('./models/User');
-const Razorpay = require('razorpay'); // <--- RESTORED THIS
-const crypto = require('crypto');     // <--- RESTORED THIS
 
 const port = process.env.PORT || 5001;
 
@@ -31,13 +29,6 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
-// --- RESTORED: RAZORPAY CONFIGURATION ---
-// This uses your Test Key. If you have it in .env, it uses that instead.
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_RqD258d3jIqnzq', 
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'YOUR_KEY_SECRET_HERE' 
-});
 
 // --- GLOBAL CHAT SETTINGS ---
 let chatSettings = {
@@ -70,47 +61,6 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     res.json({ fileUrl, fileName: req.file.originalname, type: req.file.mimetype });
 });
 
-// --- RESTORED: PAYMENT ROUTES ---
-// This handles the "Create Order" request from your dashboard
-app.post('/api/payment/order', async (req, res) => {
-    try {
-        const options = {
-            amount: req.body.amount * 100, // Amount in paise
-            currency: "INR",
-            receipt: "receipt_" + Math.random().toString(36).substring(7),
-        };
-        const order = await razorpay.orders.create(options);
-        res.json(order);
-    } catch (error) {
-        console.error("Razorpay Order Error:", error);
-        res.status(500).send("Payment Error");
-    }
-});
-
-app.post('/api/payment/verify', async (req, res) => {
-    try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-        const body = razorpay_order_id + "|" + razorpay_payment_id;
-        
-        // Use the Key Secret to verify
-        // NOTE: If you are using a specific key secret, make sure it matches your dashboard
-        const expectedSignature = crypto
-            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || 'YOUR_KEY_SECRET_HERE')
-            .update(body.toString())
-            .digest("hex");
-
-        if (expectedSignature === razorpay_signature) {
-            // In a real app, update the Bill status to 'paid' here
-            res.json({ status: "success" });
-        } else {
-            res.status(400).send("Invalid Signature");
-        }
-    } catch (error) {
-        console.error("Verify Error:", error);
-        res.status(500).send("Verification Error");
-    }
-});
-
 // --- CHAT ROUTES ---
 app.get('/api/messages/:room/:userId', async (req, res) => {
   try {
@@ -122,9 +72,9 @@ app.get('/api/messages/:room/:userId', async (req, res) => {
   }
 });
 
-// Routes
+// --- API ROUTES ---
 app.use('/api/users', require('./routes/userRoutes'));
-app.use('/api/bills', require('./routes/billRoutes')); 
+app.use('/api/bills', require('./routes/billRoutes')); // <--- Payment Logic is now here
 app.use('/api/notices', require('./routes/noticeRoutes')); 
 app.use('/api/complaints', require('./routes/complaintRoutes')); 
 
@@ -142,7 +92,6 @@ const io = new Server(server, {
 });
 
 io.on('connection', (socket) => {
-  // ... (Your Chat Logic remains the same) ...
   console.log(`✅ User Connected: ${socket.id}`);
 
   socket.on('join_room', (room) => {
