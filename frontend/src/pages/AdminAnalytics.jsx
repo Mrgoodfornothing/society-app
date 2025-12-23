@@ -1,10 +1,11 @@
+import { useMemo } from 'react'; // Optimization hook
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { 
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement 
 } from 'chart.js';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import { Download, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react';
+import { Download, TrendingUp, AlertCircle, CheckCircle, UserX } from 'lucide-react';
 
 // Register Chart Components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
@@ -17,14 +18,29 @@ const AdminAnalytics = ({ residents, bills }) => {
   const paidCount = bills.filter(b => b.status === 'paid').length;
   const pendingCount = bills.filter(b => b.status === 'pending').length;
 
-  // 2. Chart Data Configuration
+  // 2. DYNAMIC MONTHLY REVENUE CALCULATION
+  const monthlyRevenue = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const revenueByMonth = new Array(12).fill(0);
+
+    bills.forEach(bill => {
+      if (bill.status === 'paid') {
+        const monthIndex = new Date(bill.paymentDate || bill.createdAt).getMonth();
+        revenueByMonth[monthIndex] += bill.amount;
+      }
+    });
+
+    return { labels: months, data: revenueByMonth };
+  }, [bills]);
+
+  // 3. Chart Data Configuration
   const revenueData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], // Static for MVP, can be dynamic later
+    labels: monthlyRevenue.labels,
     datasets: [
       {
         label: 'Revenue Collection (₹)',
-        data: [12000, 15000, 8000, 22000, 18000, totalRevenue || 5000], // Last one is real-ish
-        backgroundColor: 'rgba(79, 70, 229, 0.7)',
+        data: monthlyRevenue.data, // NOW REAL DATA
+        backgroundColor: 'rgba(79, 70, 229, 0.8)',
         borderRadius: 6,
       },
     ],
@@ -41,22 +57,38 @@ const AdminAnalytics = ({ residents, bills }) => {
     ],
   };
 
-  // 3. Excel Export Logic
+  // 4. FIND TOP DEFAULTERS (Residents with most pending bills)
+  const defaulters = useMemo(() => {
+    const pendingBills = bills.filter(b => b.status === 'pending');
+    const counts = {};
+    
+    pendingBills.forEach(bill => {
+        const name = bill.resident?.name || "Unknown";
+        if(!counts[name]) counts[name] = 0;
+        counts[name] += bill.amount;
+    });
+
+    return Object.entries(counts)
+        .sort(([, a], [, b]) => b - a) // Sort by highest amount
+        .slice(0, 3); // Top 3
+  }, [bills]);
+
+  // 5. Excel Export Logic (FIXED NAME DISPLAY)
   const exportToExcel = () => {
-    // Flatten data for Excel
     const dataToExport = bills.map(bill => ({
       Title: bill.title,
       Amount: bill.amount,
       Status: bill.status.toUpperCase(),
-      Date: new Date(bill.createdAt).toLocaleDateString(),
-      Resident_ID: bill.resident // In a real app, you'd match this ID to a Name
+      Date_Created: new Date(bill.createdAt).toLocaleDateString(),
+      Date_Paid: bill.paymentDate ? new Date(bill.paymentDate).toLocaleDateString() : 'N/A',
+      Resident: bill.resident?.name || "Unknown User", // Correctly gets name
+      Flat: bill.resident?.flatNumber || "N/A"
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Financials");
     
-    // Generate Buffer
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
     
@@ -114,14 +146,37 @@ const AdminAnalytics = ({ residents, bills }) => {
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="glass p-6 rounded-xl">
-          <h4 className="font-bold mb-4 text-slate-700 dark:text-white">Revenue Trend</h4>
-          <Bar data={revenueData} options={{ responsive: true, plugins: { legend: { display: false } } }} />
-        </div>
-        <div className="glass p-6 rounded-xl flex flex-col items-center">
-          <h4 className="font-bold mb-4 text-slate-700 dark:text-white">Payment Status</h4>
-          <div className="w-64">
-            <Doughnut data={statusData} />
+          <h4 className="font-bold mb-4 text-slate-700 dark:text-white">Revenue Trend (Monthly)</h4>
+          <div className="h-64">
+            <Bar data={revenueData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} />
           </div>
+        </div>
+        
+        {/* Payment Status & Defaulters */}
+        <div className="space-y-6">
+            <div className="glass p-6 rounded-xl flex flex-col items-center">
+                <h4 className="font-bold mb-4 text-slate-700 dark:text-white">Payment Status</h4>
+                <div className="w-48">
+                    <Doughnut data={statusData} />
+                </div>
+            </div>
+
+            {/* NEW: Top Pending Dues */}
+            <div className="glass p-4 rounded-xl">
+                <h4 className="font-bold mb-2 text-slate-700 dark:text-white flex items-center gap-2">
+                    <UserX size={16} className="text-red-500"/> Highest Pending Dues
+                </h4>
+                {defaulters.length === 0 ? <p className="text-xs text-slate-500">Everyone is paid up!</p> : (
+                    <ul className="space-y-2">
+                        {defaulters.map(([name, amount], index) => (
+                            <li key={index} className="flex justify-between text-sm border-b border-slate-100 dark:border-slate-700 pb-1">
+                                <span className="text-slate-600 dark:text-slate-300">{name}</span>
+                                <span className="font-bold text-red-500">₹{amount}</span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
         </div>
       </div>
     </div>
