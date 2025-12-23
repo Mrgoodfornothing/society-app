@@ -9,7 +9,11 @@ const { errorHandler } = require('./middleware/errorMiddleware');
 const http = require('http');
 const { Server } = require('socket.io');
 const Message = require('./models/messageModel');
-const User = require('./models/User');
+const User = require('./models/User'); 
+const Bill = require('./models/Bill'); // <--- Added Bill Model
+const Razorpay = require('razorpay'); 
+const crypto = require('crypto');     
+const nodemailer = require('nodemailer'); // <--- Added Nodemailer
 
 const port = process.env.PORT || 5001;
 
@@ -30,22 +34,73 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// --- GLOBAL CHAT SETTINGS ---
+// --- RAZORPAY CONFIG ---
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_RqD258d3jIqnzq', 
+  key_secret: process.env.RAZORPAY_KEY_SECRET || 'YOUR_KEY_SECRET_HERE' 
+});
+
+// --- EMAIL CONFIGURATION ---
+const transporter = nodemailer.createTransport({
+  service: 'gmail', // or your email provider
+  auth: {
+    user: process.env.EMAIL_USER, // Ensure these are in your .env file
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+// --- HELPER: Send Invoice Email ---
+const sendInvoiceEmail = async (userEmail, userName, bill) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: userEmail,
+    subject: `Payment Successful - ${bill.title}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="color: #4F46E5;">Payment Receipt</h2>
+        <p>Hi ${userName},</p>
+        <p>We have successfully received your payment for <strong>${bill.title}</strong>.</p>
+        
+        <table style="width: 100%; max-width: 400px; border-collapse: collapse; margin-top: 20px;">
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd;">Amount Paid:</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; font-weight: bold;">₹${bill.amount}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd;">Date:</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd;">${new Date().toLocaleDateString()}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd;">Status:</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; color: green; font-weight: bold;">PAID ✅</td>
+          </tr>
+        </table>
+
+        <p style="margin-top: 20px; color: #666;">Thank you,<br/>Society Management Team</p>
+      </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Invoice sent to ${userEmail}`);
+  } catch (error) {
+    console.error("❌ Email Error:", error);
+  }
+};
+
+// --- CHAT SETTINGS ---
 let chatSettings = {
   adminsOnly: false,
   globalDisappearingTime: 0, 
 };
 
-// --- FILE UPLOAD SETUP ---
+// --- FILE UPLOAD ---
 const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-}
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/');
-    },
+    destination: (req, file, cb) => cb(null, 'uploads/'),
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const ext = path.extname(file.originalname) || '.webm';
@@ -61,7 +116,60 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
     res.json({ fileUrl, fileName: req.file.originalname, type: req.file.mimetype });
 });
 
-// --- CHAT ROUTES ---
+// --- PAYMENT ROUTES ---
+app.post('/api/bills/create-order', async (req, res) => { 
+    try {
+        const options = {
+            amount: req.body.amount * 100, 
+            currency: "INR",
+            receipt: "receipt_" + Math.random().toString(36).substring(7),
+        };
+        const order = await razorpay.orders.create(options);
+        res.json(order);
+    } catch (error) {
+        console.error("Razorpay Order Error:", error);
+        res.status(500).send("Payment Error");
+    }
+});
+
+app.post('/api/bills/verify-payment', async (req, res) => { 
+    try {
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, billId } = req.body;
+        const body = razorpay_order_id + "|" + razorpay_payment_id;
+        
+        const expectedSignature = crypto
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || 'YOUR_KEY_SECRET_HERE')
+            .update(body.toString())
+            .digest("hex");
+
+        if (expectedSignature === razorpay_signature) {
+            // 1. UPDATE DB
+            const bill = await Bill.findById(billId).populate('resident');
+            if(bill) {
+                bill.status = 'paid';
+                bill.paymentDate = Date.now();
+                bill.paymentId = razorpay_payment_id;
+                await bill.save();
+
+                // 2. SEND EMAIL
+                if (bill.resident && bill.resident.email) {
+                    sendInvoiceEmail(bill.resident.email, bill.resident.name, bill);
+                }
+                
+                res.json({ status: "success" });
+            } else {
+                res.status(404).send("Bill not found");
+            }
+        } else {
+            res.status(400).send("Invalid Signature");
+        }
+    } catch (error) {
+        console.error("Verify Error:", error);
+        res.status(500).send("Verification Error");
+    }
+});
+
+// --- CHAT ROUTE ---
 app.get('/api/messages/:room/:userId', async (req, res) => {
   try {
     const { room, userId } = req.params;
@@ -72,9 +180,9 @@ app.get('/api/messages/:room/:userId', async (req, res) => {
   }
 });
 
-// --- API ROUTES ---
+// Routes
 app.use('/api/users', require('./routes/userRoutes'));
-app.use('/api/bills', require('./routes/billRoutes')); // <--- Payment Logic is now here
+app.use('/api/bills', require('./routes/billRoutes')); 
 app.use('/api/notices', require('./routes/noticeRoutes')); 
 app.use('/api/complaints', require('./routes/complaintRoutes')); 
 
