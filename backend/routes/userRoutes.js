@@ -1,24 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const { 
-  registerUser, 
-  authUser, 
-  getMe, 
-  googleLogin,
-  getResidents // <--- IMPORT THIS
+  registerUser, authUser, getMe, googleLogin, getResidents, getAllUsers, updateUserProfile 
 } = require('../controllers/userController'); 
-
-// Import 'admin' middleware along with 'protect'
 const { protect, admin } = require('../middleware/authMiddleware');
 
 router.post('/', registerUser);
 router.post('/login', authUser);
 router.post('/google-login', googleLogin);
 router.get('/me', protect, getMe);
+router.get('/', protect, admin, getResidents); // Or getAllUsers depending on your naming
 
-// --- ADD THIS MISSING ROUTE ---
-// This tells the server: "When Admin goes to /api/users, run getResidents function"
-router.get('/', protect, admin, getResidents); 
-// ------------------------------
+// NEW: Profile Update Route
+router.put('/profile', protect, updateUserProfile);
 
 module.exports = router;

@@ -359,18 +359,37 @@ const HelpdeskTab = () => {
   );
 };
 
-// --- MODAL ---
+// --- UPDATED MODAL WITH BULK OPTION ---
 const CreateBillModal = ({ residents, closeModal, token }) => {
+  const [isBulk, setIsBulk] = useState(false); // New State
   const [formData, setFormData] = useState({ residentId: '', title: 'Monthly Maintenance', amount: '', dueDate: '' });
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.post('/api/bills', formData, config);
-      toast.success('Bill Created!');
+      
+      if (isBulk) {
+        // BULK BILL API
+        await axios.post('/api/bills/bulk', {
+            title: formData.title,
+            amount: formData.amount,
+            dueDate: formData.dueDate
+        }, config);
+        toast.success('Bills sent to ALL residents!');
+      } else {
+        // SINGLE BILL API
+        await axios.post('/api/bills', formData, config);
+        toast.success('Bill Created!');
+      }
       closeModal();
-    } catch (error) { toast.error('Failed to create bill'); }
+    } catch (error) { 
+        console.error(error);
+        toast.error('Failed to create bill'); 
+    }
+    setLoading(false);
   };
 
   return (
@@ -378,20 +397,36 @@ const CreateBillModal = ({ residents, closeModal, token }) => {
       <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="glass w-full max-w-lg p-6 rounded-xl relative">
         <button onClick={closeModal} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X /></button>
         <h2 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">Issue New Bill</h2>
+        
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm text-slate-500 mb-1">Select Resident</label>
-            <select required className="w-full p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" onChange={(e) => setFormData({...formData, residentId: e.target.value})}>
-              <option value="">-- Choose Flat --</option>
-              {residents.map(r => <option key={r._id} value={r._id}>{r.name} - {r.flatNumber}</option>)}
-            </select>
+          
+          {/* BULK TOGGLE */}
+          <div className="flex items-center space-x-3 bg-indigo-50 dark:bg-slate-700 p-3 rounded-lg cursor-pointer" onClick={() => setIsBulk(!isBulk)}>
+             <div className={`w-5 h-5 rounded border flex items-center justify-center ${isBulk ? 'bg-indigo-600 border-indigo-600' : 'border-slate-400'}`}>
+                {isBulk && <Check size={14} className="text-white" />}
+             </div>
+             <span className="font-bold text-slate-700 dark:text-white">Send to ALL Residents</span>
           </div>
+
+          {!isBulk && (
+              <div>
+                <label className="block text-sm text-slate-500 mb-1">Select Resident</label>
+                <select required={!isBulk} className="w-full p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" onChange={(e) => setFormData({...formData, residentId: e.target.value})}>
+                  <option value="">-- Choose Flat --</option>
+                  {residents.map(r => <option key={r._id} value={r._id}>{r.name} - {r.flatNumber}</option>)}
+                </select>
+              </div>
+          )}
+
           <div><label className="block text-sm text-slate-500 mb-1">Bill Title</label><input type="text" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="input-field" /></div>
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-sm text-slate-500 mb-1">Amount (₹)</label><input type="number" required placeholder="2000" onChange={(e) => setFormData({...formData, amount: e.target.value})} className="input-field" /></div>
             <div><label className="block text-sm text-slate-500 mb-1">Due Date</label><input type="date" required onChange={(e) => setFormData({...formData, dueDate: e.target.value})} className="input-field" /></div>
           </div>
-          <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition mt-4">Generate Bill</button>
+          
+          <button disabled={loading} type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition mt-4">
+            {loading ? 'Processing...' : (isBulk ? 'Send to Everyone' : 'Generate Bill')}
+          </button>
         </form>
       </motion.div>
     </div>

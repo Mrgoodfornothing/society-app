@@ -85,14 +85,6 @@ const authUser = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Get all residents
-// @route   GET /api/users
-// @access  Private/Admin
-const getResidents = asyncHandler(async (req, res) => {
-  const users = await User.find({ role: 'resident' }).select('-password');
-  res.json(users);
-});
-
 // @desc    Auth with Google
 // @route   POST /api/users/google-login
 // @access  Public
@@ -151,15 +143,59 @@ const googleLogin = async (req, res) => {
   }
 };
 
-
+// @desc    Get current user data
+// @route   GET /api/users/me
+// @access  Private
 const getMe = asyncHandler(async (req, res) => {
   res.status(200).json(req.user);
+});
+
+// @desc    Get all users (Admin view - used for Resident List)
+// @route   GET /api/users
+// @access  Private/Admin
+const getAllUsers = asyncHandler(async (req, res) => {
+  // Fetch only residents
+  const users = await User.find({ role: 'resident' }).select('-password');
+  res.json(users);
+});
+
+// Aliasing getResidents to getAllUsers to avoid breaking existing routes
+const getResidents = getAllUsers;
+
+// @desc    Update User Profile
+// @route   PUT /api/users/profile
+// @access  Private
+const updateUserProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (user) {
+    user.name = req.body.name || user.name;
+    user.phone = req.body.phone || user.phone;
+    user.flatNumber = req.body.flatNumber || user.flatNumber;
+    
+    const updatedUser = await user.save();
+
+    res.json({
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      flatNumber: updatedUser.flatNumber,
+      phone: updatedUser.phone,
+      token: req.headers.authorization.split(' ')[1] // Keep existing token
+    });
+  } else {
+    res.status(404);
+    throw new Error('User not found');
+  }
 });
 
 module.exports = { 
   registerUser, 
   authUser, 
   getResidents, 
-  getMe,
-  googleLogin, // <--- Export the "Good" function
+  getMe, 
+  googleLogin,
+  getAllUsers,      // <--- Now this function actually exists above
+  updateUserProfile // <--- And this one too
 };

@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  LogOut, Home, CreditCard, Menu, X, Bell, Wrench, CheckCircle, Phone, Shield, Zap, Droplet, Flame 
+  LogOut, Home, CreditCard, Menu, X, Bell, Wrench, CheckCircle, Phone, Shield, Zap, Droplet, Flame, User, MessageSquare
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { toast } from 'react-toastify';
 import ChatTab from './ChatTab';
-import { MessageSquare } from 'lucide-react'; 
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -22,6 +21,8 @@ const Dashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   // Mobile Sidebar State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // Profile Modal State
+  const [showProfileModal, setShowProfileModal] = useState(false);
   
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -69,8 +70,7 @@ const Dashboard = () => {
     try {
       const config = { headers: { Authorization: `Bearer ${user.token}` } };
       
-      // 1. Create Order (UPDATED ROUTE to match your billRoutes)
-      // Was: /api/payment/order -> Now: /api/bills/create-order
+      // 1. Create Order
       const { data: order } = await axios.post('/api/bills/create-order', { amount: billAmount }, config);
 
       // 2. Configure Options
@@ -83,8 +83,7 @@ const Dashboard = () => {
         order_id: order.id,
         handler: async function (response) {
           try {
-            // 3. Verify Payment (UPDATED ROUTE)
-            // Was: /api/payment/verify -> Now: /api/bills/verify-payment
+            // 3. Verify Payment
             const verifyData = {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
@@ -93,7 +92,7 @@ const Dashboard = () => {
             };
             await axios.post('/api/bills/verify-payment', verifyData, config);
             
-            toast.success("Payment Successful!");
+            toast.success("Payment Successful! Email Sent.");
             fetchBills(user.token); // Refresh bills to show 'Paid'
           } catch (error) {
             console.error("Verification Error", error);
@@ -113,7 +112,7 @@ const Dashboard = () => {
       rzp1.open();
     } catch (error) {
       console.error("Payment Start Error:", error);
-      toast.error("Payment failed to start. Check console.");
+      toast.error("Payment failed to start.");
     }
   };
 
@@ -152,7 +151,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex transition-colors duration-300">
       
-      {/* 1. DESKTOP SIDEBAR (Hidden on Mobile) */}
+      {/* 1. DESKTOP SIDEBAR */}
       <motion.div animate={{ width: isSidebarOpen ? '250px' : '80px' }} className="h-screen bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden md:flex flex-col shadow-xl z-20">
         <div className="p-6 flex items-center justify-between">
           {isSidebarOpen && <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">Society App</h1>}
@@ -196,7 +195,6 @@ const Dashboard = () => {
                   <X size={20} />
                 </button>
               </div>
-              
               <nav className="flex-1 p-4 space-y-2">
                 <SidebarItem icon={<Home size={20} />} text="Overview" active={activeTab === 'overview'} isOpen={true} onClick={() => handleNavClick('overview')} />
                 <SidebarItem icon={<CreditCard size={20} />} text="My Bills" active={activeTab === 'bills'} isOpen={true} onClick={() => handleNavClick('bills')} />
@@ -205,7 +203,6 @@ const Dashboard = () => {
                 <SidebarItem icon={<Wrench size={20} />} text="Helpdesk" active={activeTab === 'helpdesk'} isOpen={true} onClick={() => handleNavClick('helpdesk')} />
                 <SidebarItem icon={<Phone size={20} />} text="Directory" active={activeTab === 'directory'} isOpen={true} onClick={() => handleNavClick('directory')} />
               </nav>
-
               <div className="p-4 border-t border-slate-200 dark:border-slate-700">
                 <button onClick={logoutHandler} className="flex items-center space-x-3 w-full p-3 rounded-lg hover:bg-red-50 text-red-500 transition-colors">
                   <LogOut size={20} />
@@ -231,7 +228,16 @@ const Dashboard = () => {
               Welcome, {user.name?.split(' ')[0]}
             </h2>
           </div>
-          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">{theme === 'dark' ? '🌙' : '☀️'}</button>
+          <div className="flex items-center">
+              {/* NEW: Edit Profile Button */}
+              <button onClick={() => setShowProfileModal(true)} className="p-2 mr-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
+                  <User size={20} />
+              </button>
+              
+              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
+                  {theme === 'dark' ? '🌙' : '☀️'}
+              </button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 relative">
@@ -358,6 +364,10 @@ const Dashboard = () => {
              </div>
            )}
         </main>
+        
+        {/* EDIT PROFILE MODAL RENDERED HERE */}
+        {showProfileModal && <EditProfileModal user={user} close={() => setShowProfileModal(false)} updateUser={setUser} />}
+        
       </div>
     </div>
   );
@@ -368,5 +378,43 @@ const SidebarItem = ({ icon, text, active, isOpen, onClick }) => (
     {icon} {isOpen && <span className="ml-3 font-medium">{text}</span>}
   </div>
 );
+
+// --- NEW COMPONENT: EDIT PROFILE MODAL ---
+const EditProfileModal = ({ user, close, updateUser }) => {
+    const [form, setForm] = useState({ name: user.name, phone: user.phone || '', flatNumber: user.flatNumber || '' });
+    
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            const { data } = await axios.put('/api/users/profile', form, config);
+            
+            // Update Local Storage
+            const updatedUser = { ...user, ...data };
+            localStorage.setItem('userInfo', JSON.stringify(updatedUser));
+            updateUser(updatedUser); // Update Parent State
+            
+            toast.success("Profile Updated!");
+            close();
+        } catch (error) {
+            toast.error("Failed to update profile");
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="glass w-full max-w-md p-6 rounded-xl relative">
+                <button onClick={close} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X /></button>
+                <h2 className="text-2xl font-bold mb-6 text-slate-800 dark:text-white">Edit Profile</h2>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div><label className="text-sm text-slate-500">Name</label><input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="input-field"/></div>
+                    <div><label className="text-sm text-slate-500">Phone</label><input type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="input-field"/></div>
+                    <div><label className="text-sm text-slate-500">Flat Number</label><input type="text" value={form.flatNumber} onChange={e => setForm({...form, flatNumber: e.target.value})} className="input-field"/></div>
+                    <button className="bg-indigo-600 text-white w-full py-3 rounded-lg font-bold hover:bg-indigo-700">Save Changes</button>
+                </form>
+            </motion.div>
+        </div>
+    );
+};
 
 export default Dashboard;
