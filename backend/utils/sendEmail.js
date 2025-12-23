@@ -1,7 +1,6 @@
 const nodemailer = require('nodemailer');
 
 const sendEmail = async (options) => {
-  // 1. Create the Transporter (The Service)
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -10,15 +9,17 @@ const sendEmail = async (options) => {
     },
   });
 
-  // 2. Define the Email
+  // Create a simple text version from the HTML message (stripping tags roughly)
+  const textMessage = options.message.replace(/<[^>]*>?/gm, '');
+
   const mailOptions = {
     from: `"Society Connect Support" <${process.env.EMAIL_USER}>`,
     to: options.email,
     subject: options.subject,
-    html: options.message, // HTML body
+    html: options.message,      // HTML version
+    text: textMessage           // Plain text fallback (Helps with Gmail delivery)
   };
 
-  // 3. Send it
   await transporter.sendMail(mailOptions);
 };
 
