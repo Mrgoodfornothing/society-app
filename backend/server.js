@@ -140,16 +140,28 @@ app.post('/api/bills/verify-payment', async (req, res) => {
         if (expectedSignature === razorpay_signature) {
             // 1. UPDATE DB
             const bill = await Bill.findById(billId).populate('resident');
+            
             if(bill) {
                 bill.status = 'paid';
                 bill.paymentDate = Date.now();
                 bill.paymentId = razorpay_payment_id;
                 await bill.save();
 
-                // 2. SEND EMAIL (Using the new helper)
+                // --- DEBUG LOGS (Check your terminal when you pay) ---
+                console.log("---------------------------------------------");
+                console.log("💸 Payment Verified for Bill:", bill.title);
+                console.log("👤 Resident Name:", bill.resident ? bill.resident.name : "UNKNOWN");
+                console.log("📧 Resident Email:", bill.resident ? bill.resident.email : "MISSING");
+
+                // 2. SEND EMAIL
                 if (bill.resident && bill.resident.email) {
-                    handleInvoiceEmail(bill.resident.email, bill.resident.name, bill);
+                    console.log("🚀 Sending invoice to:", bill.resident.email);
+                    // We use 'await' here to force the server to wait for the email to go
+                    await handleInvoiceEmail(bill.resident.email, bill.resident.name, bill);
+                } else {
+                    console.log("❌ SKIPPING EMAIL: No email address found for this resident.");
                 }
+                console.log("---------------------------------------------");
                 
                 res.json({ status: "success" });
             } else {
@@ -163,7 +175,6 @@ app.post('/api/bills/verify-payment', async (req, res) => {
         res.status(500).send("Verification Error");
     }
 });
-
 // --- CHAT ROUTE ---
 app.get('/api/messages/:room/:userId', async (req, res) => {
   try {
