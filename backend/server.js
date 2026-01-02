@@ -10,10 +10,13 @@ const http = require('http');
 const { Server } = require('socket.io');
 const Message = require('./models/messageModel');
 const User = require('./models/User'); 
-const Bill = require('./models/Bill'); // <--- Added Bill Model
+const Bill = require('./models/Bill'); 
 const Razorpay = require('razorpay'); 
 const crypto = require('crypto');     
-const nodemailer = require('nodemailer'); // <--- Added Nodemailer
+
+// --- CHANGE 1: IMPORT THE WORKING UTILITY ---
+// We removed 'nodemailer' here and imported your working file instead
+const sendEmail = require('./utils/sendEmail'); 
 
 const port = process.env.PORT || 5001;
 
@@ -40,49 +43,41 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET || 'YOUR_KEY_SECRET_HERE' 
 });
 
-// --- EMAIL CONFIGURATION ---
-const transporter = nodemailer.createTransport({
-  service: 'gmail', // or your email provider
-  auth: {
-    user: process.env.EMAIL_USER, // Ensure these are in your .env file
-    pass: process.env.EMAIL_PASS
-  }
-});
+// --- CHANGE 2: NEW EMAIL HELPER ---
+// This function prepares the HTML and uses the working sendEmail utility
+const handleInvoiceEmail = async (userEmail, userName, bill) => {
+  const message = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+      <h2 style="color: #4F46E5;">Payment Receipt</h2>
+      <p>Hi ${userName},</p>
+      <p>We have successfully received your payment for <strong>${bill.title}</strong>.</p>
+      
+      <table style="width: 100%; max-width: 400px; border-collapse: collapse; margin-top: 20px;">
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">Amount Paid:</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd; font-weight: bold;">₹${bill.amount}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">Date:</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">${new Date().toLocaleDateString()}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">Status:</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd; color: green; font-weight: bold;">PAID ✅</td>
+        </tr>
+      </table>
 
-// --- HELPER: Send Invoice Email ---
-const sendInvoiceEmail = async (userEmail, userName, bill) => {
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: userEmail,
-    subject: `Payment Successful - ${bill.title}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-        <h2 style="color: #4F46E5;">Payment Receipt</h2>
-        <p>Hi ${userName},</p>
-        <p>We have successfully received your payment for <strong>${bill.title}</strong>.</p>
-        
-        <table style="width: 100%; max-width: 400px; border-collapse: collapse; margin-top: 20px;">
-          <tr>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd;">Amount Paid:</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; font-weight: bold;">₹${bill.amount}</td>
-          </tr>
-          <tr>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd;">Date:</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd;">${new Date().toLocaleDateString()}</td>
-          </tr>
-          <tr>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd;">Status:</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; color: green; font-weight: bold;">PAID ✅</td>
-          </tr>
-        </table>
+      <p style="margin-top: 20px; color: #666;">Thank you,<br/>Society Management Team</p>
+    </div>
+  `;
 
-        <p style="margin-top: 20px; color: #666;">Thank you,<br/>Society Management Team</p>
-      </div>
-    `
-  };
-
+  // Use the utility we just tested
   try {
-    await transporter.sendMail(mailOptions);
+    await sendEmail({
+        email: userEmail,
+        subject: `Payment Successful - ${bill.title}`,
+        message: message
+    });
     console.log(`📧 Invoice sent to ${userEmail}`);
   } catch (error) {
     console.error("❌ Email Error:", error);
@@ -151,9 +146,9 @@ app.post('/api/bills/verify-payment', async (req, res) => {
                 bill.paymentId = razorpay_payment_id;
                 await bill.save();
 
-                // 2. SEND EMAIL
+                // 2. SEND EMAIL (Using the new helper)
                 if (bill.resident && bill.resident.email) {
-                    sendInvoiceEmail(bill.resident.email, bill.resident.name, bill);
+                    handleInvoiceEmail(bill.resident.email, bill.resident.name, bill);
                 }
                 
                 res.json({ status: "success" });
